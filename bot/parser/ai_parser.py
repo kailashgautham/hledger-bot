@@ -79,7 +79,12 @@ Rules:
 - amount is always a positive number (the spend amount in the statement currency)
 - Skip credits, refunds, payments, and any negative amounts
 - date must be ISO format YYYY-MM-DD
-- description should be the merchant/payee name as it appears, cleaned up slightly if needed
+- description must be a clean, human-readable merchant name:
+  * Remove order IDs, booking codes, random alphanumeric suffixes (e.g. "AIRBNB * HMD2S4Q5EC" → "Airbnb")
+  * Remove URL prefixes/domains (e.g. "WWW.TADA.GLOBAL" → "Tada", "WWW_CONTABO_COM" → "Contabo")
+  * Remove payment prefixes (e.g. "fp*Food Panda" → "Food Panda", "Grab* A-98OLA4OGW3W" → "Grab")
+  * Convert ALL CAPS to Title Case (e.g. "LUCKIN COFFEE" → "Luckin Coffee")
+  * Keep well-known brand names as-is in proper casing (e.g. "McDonald's", "Airbnb", "Shopee")
 
 Statement text:
 {pages_text[:12000]}"""

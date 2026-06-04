@@ -57,8 +57,10 @@ def is_allowed(user_id: int) -> bool:
 
 
 def card_config_for(card_name: str) -> dict:
+    needle = card_name.lower()
     for card in config.get("cards", []):
-        if card["name"] == card_name:
+        name = card["name"].lower()
+        if name == needle or name in needle or needle in name:
             return card
     return {"name": card_name, "liability_account": "liabilities:creditcard:unknown"}
 
