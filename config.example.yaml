@@ -1,0 +1,26 @@
+telegram:
+  # Your Telegram user ID (get it from @userinfobot). Empty list = allow all (dev only).
+  allowed_user_ids: [123456789]
+
+hledger:
+  journal_path: ~/finance/journal.hledger
+  git_branch: main
+
+cards:
+  - name: DBS Altitude
+    liability_account: liabilities:creditcard:dbs
+    parser: dbs
+  - name: OCBC 90N
+    liability_account: liabilities:creditcard:ocbc
+    parser: ocbc
+
+currency: SGD
+
+ai:
+  # Options: gemini (free, needs GOOGLE_API_KEY), groq (free, needs GROQ_API_KEY), none
+  provider: gemini
+  # gemini: use "gemini-1.5-flash" (free tier)
+  # groq:   use "llama-3.3-70b-versatile" (free tier)
+  model: gemini-1.5-flash
+  # Ask user even for known merchants if confidence is below this threshold
+  confidence_threshold: 0.85

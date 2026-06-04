@@ -1,0 +1,11 @@
+services:
+  hledger-bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ~/finance:/finance          # your hledger git repo (journal, state, merchant map)
+      - ~/.ssh:/root/.ssh:ro        # SSH key for git push
+    environment:
+      # Override journal path to the mounted volume location
+      - JOURNAL_PATH=/finance/journal.hledger
