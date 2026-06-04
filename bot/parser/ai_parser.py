@@ -1,4 +1,5 @@
 """Generic AI-powered parser — works with any bank's credit card statement."""
+import base64
 import json
 import logging
 import os
@@ -54,17 +55,49 @@ class AIParser(BaseParser):
     def detect(self, text: str) -> bool:
         return self.available
 
-    def parse(self, pdf_path: str) -> list[Transaction]:
-        try:
-            with pdfplumber.open(pdf_path) as pdf:
-                pages_text = "\n\n".join(
-                    (p.extract_text() or "") for p in pdf.pages
-                )
-        except Exception as exc:
-            logger.error("AIParser: could not open PDF: %s", exc)
-            return []
+    def parse_image(self, image_path: str) -> list[Transaction]:
+        with open(image_path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
 
-        prompt = f"""Extract all credit card transactions from this bank statement.
+        prompt = self._extraction_prompt("<image>")
+        for attempt in range(3):
+            try:
+                raw = self._call_vision(b64, prompt)
+                return self._parse_response(raw)
+            except Exception as exc:
+                msg = str(exc)
+                if attempt < 2 and ("429" in msg or "quota" in msg.lower() or "rate" in msg.lower()):
+                    wait = 15 * (attempt + 1)
+                    logger.warning("AIParser: rate limited, retrying in %ds…", wait)
+                    time.sleep(wait)
+                    continue
+                logger.error("AIParser: image extraction failed: %s", exc)
+                return []
+        return []
+
+    def _call_vision(self, b64_image: str, prompt: str) -> str:
+        if self.provider == "groq":
+            resp = self._client.chat.completions.create(
+                model="llama-3.2-11b-vision-preview",
+                messages=[{"role": "user", "content": [
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"}},
+                    {"type": "text", "text": prompt},
+                ]}],
+                temperature=0.0,
+            )
+            return resp.choices[0].message.content
+
+        if self.provider == "gemini":
+            import PIL.Image
+            import io
+            img = PIL.Image.open(io.BytesIO(base64.b64decode(b64_image)))
+            return self._client.generate_content([prompt, img]).text
+
+        raise RuntimeError("No AI provider configured")
+
+    def _extraction_prompt(self, content: str) -> str:
+        body = f"\nStatement text:\n{content}" if content != "<image>" else ""
+        return f"""Extract all credit card transactions from this bank statement.
 
 Return JSON only (no markdown fences):
 {{
@@ -84,10 +117,19 @@ Rules:
   * Remove URL prefixes/domains (e.g. "WWW.TADA.GLOBAL" → "Tada", "WWW_CONTABO_COM" → "Contabo")
   * Remove payment prefixes (e.g. "fp*Food Panda" → "Food Panda", "Grab* A-98OLA4OGW3W" → "Grab")
   * Convert ALL CAPS to Title Case (e.g. "LUCKIN COFFEE" → "Luckin Coffee")
-  * Keep well-known brand names as-is in proper casing (e.g. "McDonald's", "Airbnb", "Shopee")
+  * Keep well-known brand names as-is in proper casing (e.g. "McDonald's", "Airbnb", "Shopee"){body}"""
 
-Statement text:
-{pages_text[:12000]}"""
+    def parse(self, pdf_path: str) -> list[Transaction]:
+        try:
+            with pdfplumber.open(pdf_path) as pdf:
+                pages_text = "\n\n".join(
+                    (p.extract_text() or "") for p in pdf.pages
+                )
+        except Exception as exc:
+            logger.error("AIParser: could not open PDF: %s", exc)
+            return []
+
+        prompt = self._extraction_prompt(pages_text[:12000])
 
         for attempt in range(3):
             try:

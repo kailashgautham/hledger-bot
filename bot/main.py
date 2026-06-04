@@ -25,6 +25,7 @@ from .config import journal_dir, load_config, merchant_map_path, state_path
 from .git_ops import GitOps
 from .merchant_map import MerchantMap
 from .parser import get_parser
+from .parser.ai_parser import AIParser
 from .state import StateManager
 from .writer import JournalWriter
 
@@ -223,9 +224,22 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     finally:
         os.unlink(pdf_path)
 
-    card_name = parser.card_name
+    await _process_transactions(
+        parser.card_name, transactions, status_msg, chat_id, context,
+        source="PDF"
+    )
+
+
+async def _process_transactions(
+    card_name: str,
+    transactions: list,
+    status_msg,
+    chat_id: int,
+    context: ContextTypes.DEFAULT_TYPE,
+    source: str = "PDF",
+) -> None:
     if not transactions:
-        await status_msg.edit_text("❌ No transactions found in the PDF.")
+        await status_msg.edit_text(f"❌ No transactions found in the {source}.")
         return
 
     last_date = state_mgr.get_last_date(card_name)
@@ -284,6 +298,41 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await _send_next(chat_id, context)
     else:
         await _finish_session(chat_id, context)
+
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+
+    if not is_allowed(user_id):
+        await update.message.reply_text("Unauthorized.")
+        return
+
+    status_msg = await update.message.reply_text("⏳ Downloading and parsing image…")
+
+    photo = update.message.photo[-1]  # highest resolution
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        img_path = tmp.name
+
+    try:
+        tg_file = await context.bot.get_file(photo.file_id)
+        await tg_file.download_to_drive(img_path)
+
+        ai_parser = AIParser(config)
+        if not ai_parser.available:
+            await status_msg.edit_text(
+                "❌ AI parser not configured. Set GROQ_API_KEY or GOOGLE_API_KEY."
+            )
+            return
+
+        transactions = ai_parser.parse_image(img_path)
+    finally:
+        os.unlink(img_path)
+
+    await _process_transactions(
+        ai_parser.card_name, transactions, status_msg, chat_id, context,
+        source="image"
+    )
 
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -440,6 +489,7 @@ def main() -> None:
     app = Application.builder().token(token).build()
 
     app.add_handler(MessageHandler(filters.Document.PDF, handle_document))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_handler(CommandHandler("status", cmd_status))
