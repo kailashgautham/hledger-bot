@@ -21,6 +21,6 @@ ai:
   provider: gemini
   # gemini: use "gemini-1.5-flash" (free tier)
   # groq:   use "llama-3.3-70b-versatile" (free tier)
-  model: gemini-1.5-flash
+  model: gemini-2.0-flash
   # Ask user even for known merchants if confidence is below this threshold
   confidence_threshold: 0.85

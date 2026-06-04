@@ -7,9 +7,8 @@ import yaml
 def load_config(path: str = "config.yaml") -> dict:
     with open(path) as f:
         config = yaml.safe_load(f)
-    config["hledger"]["journal_path"] = os.path.expanduser(
-        config["hledger"]["journal_path"]
-    )
+    journal_path = os.environ.get("JOURNAL_PATH") or config["hledger"]["journal_path"]
+    config["hledger"]["journal_path"] = os.path.expanduser(journal_path)
     return config
 
 
