@@ -78,7 +78,7 @@ class AIParser(BaseParser):
     def _call_vision(self, b64_image: str, prompt: str) -> str:
         if self.provider == "groq":
             resp = self._client.chat.completions.create(
-                model="llama-3.2-11b-vision-preview",
+                model="meta-llama/llama-4-scout-17b-16e-instruct",
                 messages=[{"role": "user", "content": [
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"}},
                     {"type": "text", "text": prompt},
