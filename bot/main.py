@@ -81,7 +81,10 @@ def _keyboard(idx: int) -> InlineKeyboardMarkup:
 
 def _account_keyboard(accounts: list[str], idx: int) -> InlineKeyboardMarkup:
     rows = [[InlineKeyboardButton(a, callback_data=f"acc|{idx}|{i}")] for i, a in enumerate(accounts)]
-    rows.append([InlineKeyboardButton("« Back", callback_data=f"back|{idx}")])
+    rows.append([
+        InlineKeyboardButton("✍️ Custom", callback_data=f"custom|{idx}"),
+        InlineKeyboardButton("« Back", callback_data=f"back|{idx}"),
+    ])
     return InlineKeyboardMarkup(rows)
 
 
@@ -110,7 +113,7 @@ async def _send_next(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not session:
         return
     session["waiting_for_name"] = False
-    session["waiting_for_category"] = False
+    session["waiting_for_custom"] = False
     session["filtered_accounts"] = []
 
     pending = session["pending"]
@@ -303,7 +306,7 @@ async def _process_transactions(
         "todo": [],
         "current_idx": 0,
         "waiting_for_name": False,
-        "waiting_for_category": False,
+        "waiting_for_custom": False,
         "filtered_accounts": [],
         "start_date": start_date,
         "end_date": end_date,
@@ -390,13 +393,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     elif action == "category":
         accounts = writer.get_accounts()
         session["filtered_accounts"] = accounts
-        session["waiting_for_category"] = True
+        session["waiting_for_category"] = False
         session["waiting_for_name"] = False
-        header = f"📂 *{tx['description']}* — pick a category\n_Or type to filter the list:_"
+        header = f"📂 *{tx['description']}* — pick a category:"
         await query.edit_message_text(
             header,
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=_account_keyboard(accounts[:15], idx),
+            reply_markup=_account_keyboard(accounts, idx),
         )
 
     elif action == "acc":
@@ -410,12 +413,20 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         session["current_idx"] += 1
         await _send_next(chat_id, context)
 
+    elif action == "custom":
+        session["waiting_for_custom"] = True
+        session["waiting_for_name"] = False
+        await query.edit_message_text(
+            f"Type an account name for `{tx['description']}`\n(e.g. `expenses:food:dining`):",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+
     elif action == "back":
         msg = _tx_message(tx, idx, len(session["pending"]))
         await query.edit_message_text(
             msg, parse_mode=ParseMode.MARKDOWN, reply_markup=_keyboard(idx)
         )
-        session["waiting_for_category"] = False
+        session["waiting_for_custom"] = False
         session["waiting_for_name"] = False
 
     elif action == "skip":
@@ -447,22 +458,18 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await update.message.reply_text(f"Name updated to `{text}`.", parse_mode=ParseMode.MARKDOWN)
         await _send_next(chat_id, context)
 
-    elif session.get("waiting_for_category"):
-        # Filter accounts by what the user typed
-        all_accounts = writer.get_accounts()
-        filtered = [a for a in all_accounts if text.lower() in a.lower()][:15]
-        if not filtered:
-            await update.message.reply_text(
-                f"No accounts match `{text}`. Try a different term or use « Back.",
-                parse_mode=ParseMode.MARKDOWN,
-            )
+    elif session.get("waiting_for_custom"):
+        if not text:
+            await update.message.reply_text("Account name can't be empty.")
             return
-        session["filtered_accounts"] = filtered
+        merchant_map.save(tx["description"], text)
+        session["confirmed"].append({**tx, "account": text, "status": "changed"})
+        session["waiting_for_custom"] = False
+        session["current_idx"] += 1
         await update.message.reply_text(
-            f"Accounts matching `{text}`:",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=_account_keyboard(filtered, idx),
+            f"✅ `{tx['description']}` → `{text}`", parse_mode=ParseMode.MARKDOWN
         )
+        await _send_next(chat_id, context)
 
 
 # ------------------------------------------------------------------
