@@ -74,6 +74,9 @@ def _keyboard(idx: int) -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("📂 Category", callback_data=f"category|{idx}"),
+            InlineKeyboardButton("✂️ Split", callback_data=f"split|{idx}"),
+        ],
+        [
             InlineKeyboardButton("⏭ Skip", callback_data=f"skip|{idx}"),
         ],
     ])
@@ -91,10 +94,14 @@ def _account_keyboard(accounts: list[str], idx: int) -> InlineKeyboardMarkup:
 def _tx_message(tx: dict, idx: int, total: int) -> str:
     suggestion = tx.get("ai_suggestion")
     confidence = tx.get("ai_confidence", 0.0)
+    currency = config.get("currency", "SGD")
+    amount_line = f"Amount: {currency} {tx['amount']:.2f}  |  Date: {tx['date']}"
+    if tx.get("original_amount"):
+        amount_line += f"  |  ✂️ split from {currency} {tx['original_amount']:.2f}"
     lines = [
         f"*Transaction {idx + 1}/{total}*",
         f"`{tx['description']}`",
-        f"Amount: {config.get('currency', 'SGD')} {tx['amount']:.2f}  |  Date: {tx['date']}",
+        amount_line,
     ]
     if suggestion:
         conf_pct = int(confidence * 100)
@@ -114,6 +121,7 @@ async def _send_next(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
         return
     session["waiting_for_name"] = False
     session["waiting_for_custom"] = False
+    session["waiting_for_split"] = False
     session["filtered_accounts"] = []
 
     pending = session["pending"]
@@ -307,6 +315,7 @@ async def _process_transactions(
         "current_idx": 0,
         "waiting_for_name": False,
         "waiting_for_custom": False,
+        "waiting_for_split": False,
         "filtered_accounts": [],
         "start_date": start_date,
         "end_date": end_date,
@@ -413,9 +422,23 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         session["current_idx"] += 1
         await _send_next(chat_id, context)
 
+    elif action == "split":
+        session["waiting_for_split"] = True
+        session["waiting_for_name"] = False
+        session["waiting_for_custom"] = False
+        currency = config.get("currency", "SGD")
+        original = tx.get("original_amount", tx["amount"])
+        await query.edit_message_text(
+            f"✂️ *Split* — total was {currency} {original:.2f}\n"
+            f"How much was *your* share?\n"
+            f"Type an amount (e.g. `15.50`) or a percentage (e.g. `50%`):",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+
     elif action == "custom":
         session["waiting_for_custom"] = True
         session["waiting_for_name"] = False
+        session["waiting_for_split"] = False
         await query.edit_message_text(
             f"Type an account name for `{tx['description']}`\n(e.g. `expenses:food:dining`):",
             parse_mode=ParseMode.MARKDOWN,
@@ -456,6 +479,34 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         session["pending"][idx]["description"] = text
         session["waiting_for_name"] = False
         await update.message.reply_text(f"Name updated to `{text}`.", parse_mode=ParseMode.MARKDOWN)
+        await _send_next(chat_id, context)
+
+    elif session.get("waiting_for_split"):
+        currency = config.get("currency", "SGD")
+        original = tx.get("original_amount", tx["amount"])
+        try:
+            if text.endswith("%"):
+                pct = float(text[:-1])
+                if not (0 < pct < 100):
+                    raise ValueError
+                my_share = round(original * pct / 100, 2)
+            else:
+                my_share = round(float(text), 2)
+                if my_share <= 0 or my_share >= original:
+                    raise ValueError
+        except ValueError:
+            await update.message.reply_text(
+                f"Invalid input. Enter an amount less than {currency} {original:.2f}, or a percentage like `50%`.",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+        session["pending"][idx]["original_amount"] = original
+        session["pending"][idx]["amount"] = my_share
+        session["waiting_for_split"] = False
+        await update.message.reply_text(
+            f"✂️ Your share: *{currency} {my_share:.2f}* (others: {currency} {original - my_share:.2f})",
+            parse_mode=ParseMode.MARKDOWN,
+        )
         await _send_next(chat_id, context)
 
     elif session.get("waiting_for_custom"):
