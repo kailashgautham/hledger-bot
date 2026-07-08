@@ -92,8 +92,18 @@ class JournalWriter:
     def _format_entry(self, tx: dict, offset_account: str) -> str:
         account = tx.get("account")
         amount_str = f"{self.currency} {tx['amount']:.2f}"
+        is_income = tx.get("type") == "income"
 
-        if account:
+        if is_income:
+            # Money in: debit the bank/card account, credit income
+            income_account = account or "income:unknown"
+            return (
+                f"{tx['date']} {tx['description']}\n"
+                f"    {offset_account:<40}{amount_str}\n"
+                f"    {income_account}\n"
+            )
+        elif account:
+            # Money out: debit expense, credit bank/card account
             return (
                 f"{tx['date']} {tx['description']}\n"
                 f"    {account:<40}{amount_str}\n"

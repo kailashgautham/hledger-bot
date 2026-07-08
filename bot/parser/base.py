@@ -2,10 +2,11 @@ from abc import ABC, abstractmethod
 from typing import TypedDict
 
 
-class Transaction(TypedDict):
+class Transaction(TypedDict, total=False):
     date: str        # ISO format: 2025-06-01
     description: str
-    amount: float    # positive = debit (expense)
+    amount: float    # always positive
+    type: str        # "expense" (money out) or "income" (money in)
 
 
 class BaseParser(ABC):

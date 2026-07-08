@@ -87,7 +87,9 @@ def _tx_message(tx: dict, idx: int, total: int) -> str:
     suggestion = tx.get("ai_suggestion")
     confidence = tx.get("ai_confidence", 0.0)
     currency = config.get("currency", "SGD")
-    amount_line = f"Amount: {currency} {tx['amount']:.2f}  |  Date: {tx['date']}"
+    is_income = tx.get("type") == "income"
+    direction = "↑ income" if is_income else "↓ expense"
+    amount_line = f"{direction}  {currency} {tx['amount']:.2f}  |  {tx['date']}"
     if tx.get("original_amount"):
         amount_line += f"  |  ✂️ split from {currency} {tx['original_amount']:.2f}"
     lines = [
@@ -321,9 +323,13 @@ async def _start_categorisation(chat_id: int, context: ContextTypes.DEFAULT_TYPE
         if known_account:
             session["auto_categorized"].append({**tx, "account": known_account, "status": "auto"})
         else:
-            suggestion = categoriser.suggest_category(
-                tx["description"], tx["amount"], currency, accounts, examples
-            )
+            is_income = tx.get("type") == "income"
+            if is_income:
+                suggestion = ("income:unknown", 0.5)
+            else:
+                suggestion = categoriser.suggest_category(
+                    tx["description"], tx["amount"], currency, accounts, examples
+                )
             session["pending"].append({
                 **tx,
                 "ai_suggestion": suggestion[0] if suggestion else None,

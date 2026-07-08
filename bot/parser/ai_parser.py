@@ -107,7 +107,8 @@ Return JSON only (no markdown fences):
   "bank_id": "short lowercase bank identifier (e.g. scb, dbs, ocbc, citi, uob, hsbc, posb, maybank)",
   "account_type": "credit or debit",
   "transactions": [
-    {{"date": "YYYY-MM-DD", "description": "merchant name", "amount": 12.50}},
+    {{"date": "YYYY-MM-DD", "description": "merchant name", "amount": 12.50, "type": "expense"}},
+    {{"date": "YYYY-MM-DD", "description": "Salary", "amount": 5000.00, "type": "income"}},
     ...
   ]
 }}
@@ -115,11 +116,12 @@ Return JSON only (no markdown fences):
 Rules:
 - account_type: "credit" for credit cards, "debit" for debit cards, savings, or current accounts
 - bank_id: the bank abbreviation only (not the card product name)
-- amount is always a positive number (the spend/debit amount)
-- For credit statements: skip credits, refunds, payments, and any negative amounts
-- For debit statements: skip incoming transfers, deposits, interest — only include outgoing payments/purchases
+- amount is always a positive number
+- type: "expense" for money going out (purchases, payments, fees, ATM withdrawals), "income" for money coming in (salary, transfers in, interest, cashback, refunds)
+- For credit card statements: include expenses AND income (refunds/cashback); skip payment of the card bill itself
+- For debit/bank statements: include ALL transactions — expenses (purchases, bills, transfers out) AND income (salary, transfers in, interest)
 - date must be ISO format YYYY-MM-DD
-- description must be a clean, human-readable merchant name:
+- description must be a clean, human-readable merchant or sender name:
   * Remove order IDs, booking codes, random alphanumeric suffixes (e.g. "AIRBNB * HMD2S4Q5EC" → "Airbnb")
   * Remove URL prefixes/domains (e.g. "WWW.TADA.GLOBAL" → "Tada", "WWW_CONTABO_COM" → "Contabo")
   * Remove payment prefixes (e.g. "fp*Food Panda" → "Food Panda", "Grab* A-98OLA4OGW3W" → "Grab")
@@ -195,10 +197,14 @@ Rules:
                 amount = float(item["amount"])
                 if amount <= 0:
                     continue
+                tx_type = str(item.get("type", "expense")).lower()
+                if tx_type not in ("expense", "income"):
+                    tx_type = "expense"
                 transactions.append(Transaction(
                     date=item["date"],
                     description=str(item["description"]).strip(),
                     amount=round(amount, 2),
+                    type=tx_type,
                 ))
             except (KeyError, ValueError, TypeError):
                 continue
