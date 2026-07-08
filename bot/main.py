@@ -185,14 +185,14 @@ async def _finish_session(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> N
     if confirmed_count:
         lines.append(f"  ✅ {confirmed_count} confirmed by you")
     if todo_count:
-        lines.append(f"  ⏭ {todo_count} skipped (; TODO in journal)")
+        lines.append(f"  ⏭ {todo_count} skipped (not recorded)")
     if dup_count:
         lines.append(f"  ⚠️ {dup_count} duplicates skipped")
     if account_totals:
         lines.append("")
         for acc, total in sorted(account_totals.items()):
             lines.append(f"  `{acc:<40}` {currency} {total:.2f}")
-    if all_txns or todo_txns:
+    if all_txns:
         lines.append(f"\nAppended to `journal.hledger`")
         if success:
             lines.append(f"Committed & pushed: _{commit_msg}_")
