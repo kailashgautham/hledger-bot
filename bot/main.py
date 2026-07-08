@@ -111,6 +111,7 @@ async def _send_next(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
     session = user_sessions.get(chat_id)
     if not session:
         return
+    session["waiting_for_card"] = False
     session["waiting_for_name"] = False
     session["waiting_for_custom"] = False
     session["waiting_for_split"] = False
@@ -273,40 +274,17 @@ async def _process_transactions(
     dates = [t["date"] for t in new_txns]
     start_date, end_date = min(dates), max(dates)
 
-    await status_msg.edit_text(
-        f"Found {len(new_txns)} transactions ({start_date} → {end_date}). "
-        f"Categorising…"
-    )
-
-    currency = config.get("currency", "SGD")
-    accounts = writer.get_accounts()
-    examples = writer.get_recent_examples()
-
-    auto_categorized: list[dict] = []
-    pending: list[dict] = []
-
-    for tx in new_txns:
-        known_account = merchant_map.lookup(tx["description"])
-        if known_account:
-            auto_categorized.append({**tx, "account": known_account, "status": "auto"})
-        else:
-            suggestion = categoriser.suggest_category(
-                tx["description"], tx["amount"], currency, accounts, examples
-            )
-            pending.append({
-                **tx,
-                "ai_suggestion": suggestion[0] if suggestion else None,
-                "ai_confidence": suggestion[1] if suggestion else 0.0,
-            })
-
+    # Stash raw transactions and ask the user to confirm the card name first
     user_sessions[chat_id] = {
         "card_name": card_name,
         "offset_account": offset_account,
-        "auto_categorized": auto_categorized,
-        "pending": pending,
+        "raw_transactions": new_txns,
+        "auto_categorized": [],
+        "pending": [],
         "confirmed": [],
         "todo": [],
         "current_idx": 0,
+        "waiting_for_card": True,
         "waiting_for_name": False,
         "waiting_for_custom": False,
         "waiting_for_split": False,
@@ -315,7 +293,44 @@ async def _process_transactions(
         "end_date": end_date,
     }
 
-    if pending:
+    await status_msg.edit_text(
+        f"Found {len(new_txns)} transactions ({start_date} → {end_date}).\n\n"
+        f"Which card/bank is this?",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"✅ {card_name}", callback_data="cardconfirm")],
+            [InlineKeyboardButton("✍️ Enter manually", callback_data="cardcustom")],
+        ]),
+    )
+
+
+async def _start_categorisation(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Run after card name is confirmed — categorise and begin the per-tx flow."""
+    session = user_sessions[chat_id]
+    new_txns = session.pop("raw_transactions")
+    session["waiting_for_card"] = False
+
+    await context.bot.send_message(chat_id=chat_id, text="Categorising…")
+
+    currency = config.get("currency", "SGD")
+    accounts = writer.get_accounts()
+    examples = writer.get_recent_examples()
+
+    for tx in new_txns:
+        known_account = merchant_map.lookup(tx["description"])
+        if known_account:
+            session["auto_categorized"].append({**tx, "account": known_account, "status": "auto"})
+        else:
+            suggestion = categoriser.suggest_category(
+                tx["description"], tx["amount"], currency, accounts, examples
+            )
+            session["pending"].append({
+                **tx,
+                "ai_suggestion": suggestion[0] if suggestion else None,
+                "ai_confidence": suggestion[1] if suggestion else 0.0,
+            })
+
+    if session["pending"]:
         await _send_next(chat_id, context)
     else:
         await _finish_session(chat_id, context)
@@ -364,6 +379,22 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     session = user_sessions.get(chat_id)
     if not session:
         await query.edit_message_text("Session expired. Send the PDF again.")
+        return
+
+    # --- Card confirmation (no |idx suffix) ---
+    if query.data == "cardconfirm":
+        await query.edit_message_text(
+            f"✅ Card: *{session['card_name']}*", parse_mode=ParseMode.MARKDOWN
+        )
+        await _start_categorisation(chat_id, context)
+        return
+
+    if query.data == "cardcustom":
+        session["waiting_for_card"] = True
+        await query.edit_message_text(
+            "Type the card or bank name (e.g. `SC SimplyCash`, `DBS Multiplier`):",
+            parse_mode=ParseMode.MARKDOWN,
+        )
         return
 
     parts = query.data.split("|")
@@ -463,6 +494,19 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     text = update.message.text.strip()
+
+    if session.get("waiting_for_card"):
+        if not text:
+            await update.message.reply_text("Card name can't be empty.")
+            return
+        session["card_name"] = text
+        session["waiting_for_card"] = False
+        await update.message.reply_text(
+            f"✅ Card set to *{text}*", parse_mode=ParseMode.MARKDOWN
+        )
+        await _start_categorisation(chat_id, context)
+        return
+
     idx = session["current_idx"]
     tx = session["pending"][idx]
 
