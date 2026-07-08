@@ -1,6 +1,7 @@
 """Telegram bot entrypoint."""
 import logging
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -147,9 +148,9 @@ async def _finish_session(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> N
     all_txns = session["auto_categorized"] + session["confirmed"]
     todo_txns = session["todo"]
 
-    skipped = writer.append_transactions(all_txns + todo_txns, offset_account)
+    skipped = writer.append_transactions(all_txns, offset_account)
 
-    if all_txns or todo_txns:
+    if all_txns:
         end_date = session["end_date"]
         start_date = session["start_date"]
         state_mgr.set_last_date(end_date, card_name)
@@ -507,8 +508,17 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             return
         session["card_name"] = text
         session["waiting_for_card"] = False
+        # Re-derive offset account from the user's name, keeping credit/debit type
+        existing = session["offset_account"]
+        slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+        bank_slug = slug.split("-")[0]  # e.g. "uob:one" → "uob-one" → "uob"
+        if existing.startswith("assets:bank:"):
+            session["offset_account"] = f"assets:bank:{bank_slug}"
+        elif existing.startswith("liabilities:creditcard:"):
+            session["offset_account"] = f"liabilities:creditcard:{bank_slug}"
         await update.message.reply_text(
-            f"✅ Card set to *{text}*", parse_mode=ParseMode.MARKDOWN
+            f"✅ Card: *{text}*  |  Account: `{session['offset_account']}`",
+            parse_mode=ParseMode.MARKDOWN,
         )
         await _start_categorisation(chat_id, context)
         return
