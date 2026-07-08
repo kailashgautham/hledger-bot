@@ -298,10 +298,12 @@ async def _process_transactions(
 
     await status_msg.edit_text(
         f"Found {len(new_txns)} transactions ({start_date} → {end_date}).\n\n"
-        f"Which card/bank is this?",
+        f"*Card:* {card_name}\n"
+        f"*Account:* `{offset_account}`\n\n"
+        f"Confirm or enter manually:",
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton(f"✅ {card_name}", callback_data="cardconfirm")],
+            [InlineKeyboardButton(f"✅ Confirm", callback_data="cardconfirm")],
             [InlineKeyboardButton("✍️ Enter manually", callback_data="cardcustom")],
         ]),
     )
