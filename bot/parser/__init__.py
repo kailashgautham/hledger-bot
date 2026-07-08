@@ -37,7 +37,12 @@ def get_parser(pdf_path: str, config: dict) -> Optional[BaseParser]:
             for card in config.get("cards", []):
                 if card.get("parser") == _key_for(parser_cls):
                     instance.card_name = card["name"]
-                    return instance
+                    instance.offset_account = (
+                        card.get("offset_account")
+                        or card.get("liability_account")
+                        or card.get("asset_account")
+                        or instance.offset_account
+                    )
             return instance
 
     # Fall back to AI parser for any other bank

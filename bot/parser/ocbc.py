@@ -52,6 +52,7 @@ def _parse_amount(raw: str) -> float | None:
 class OCBCParser(BaseParser):
     IDENTIFIERS = ["OCBC BANK", "OCBC 90N", "OVERSEA-CHINESE BANKING", "OCBC CREDIT"]
     card_name = "OCBC 90N"
+    offset_account = "liabilities:creditcard:ocbc"
 
     def parse(self, pdf_path: str) -> list[Transaction]:
         transactions: list[Transaction] = []

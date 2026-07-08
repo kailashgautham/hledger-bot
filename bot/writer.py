@@ -59,7 +59,7 @@ class JournalWriter:
     # ------------------------------------------------------------------
 
     def append_transactions(
-        self, transactions: list[dict], card_config: dict
+        self, transactions: list[dict], offset_account: str
     ) -> list[dict]:
         """
         Append transactions to the journal.
@@ -73,7 +73,6 @@ class JournalWriter:
         if not self.path.exists():
             self.path.write_text("")
 
-        liability = card_config["liability_account"]
         blocks: list[str] = []
         skipped: list[dict] = []
 
@@ -81,7 +80,7 @@ class JournalWriter:
             if self.transaction_exists(tx["date"], tx["description"], tx["amount"]):
                 skipped.append(tx)
                 continue
-            blocks.append(self._format_entry(tx, liability))
+            blocks.append(self._format_entry(tx, offset_account))
 
         if blocks:
             existing = self.path.read_text()
@@ -90,24 +89,19 @@ class JournalWriter:
 
         return skipped
 
-    def _format_entry(self, tx: dict, liability: str) -> str:
+    def _format_entry(self, tx: dict, offset_account: str) -> str:
         account = tx.get("account")
         amount_str = f"{self.currency} {tx['amount']:.2f}"
 
         if account:
-            debit_line = f"    {account:<40}{amount_str}"
-            credit_line = f"    {liability}"
             return (
                 f"{tx['date']} {tx['description']}\n"
-                f"{debit_line}\n"
-                f"{credit_line}\n"
+                f"    {account:<40}{amount_str}\n"
+                f"    {offset_account}\n"
             )
         else:
-            # TODO entry — still parseable by hledger
-            debit_line = f"    expenses:unknown              {amount_str}  ; TODO"
-            credit_line = f"    {liability}"
             return (
                 f"{tx['date']} {tx['description']}  ; TODO\n"
-                f"{debit_line}\n"
-                f"{credit_line}\n"
+                f"    expenses:unknown              {amount_str}  ; TODO\n"
+                f"    {offset_account}\n"
             )

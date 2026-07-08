@@ -12,6 +12,7 @@ class BaseParser(ABC):
     # Strings that identify this bank in the PDF text
     IDENTIFIERS: list[str] = []
     card_name: str = ""
+    offset_account: str = "liabilities:creditcard:unknown"
 
     def detect(self, text: str) -> bool:
         upper = text.upper()

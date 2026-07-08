@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 class AIParser(BaseParser):
     IDENTIFIERS = []
     card_name = "Unknown"
+    offset_account = "liabilities:creditcard:unknown"
 
     def __init__(self, config: dict):
         ai = config.get("ai", {})
@@ -23,6 +24,7 @@ class AIParser(BaseParser):
         self.model_name = ai.get("model", "")
         self._cards = config.get("cards", [])
         self._client = self._init_client()
+        self._config = config
 
     @property
     def available(self) -> bool:
@@ -97,11 +99,13 @@ class AIParser(BaseParser):
 
     def _extraction_prompt(self, content: str) -> str:
         body = f"\nStatement text:\n{content}" if content != "<image>" else ""
-        return f"""Extract all credit card transactions from this bank statement.
+        return f"""Extract all transactions from this bank statement.
 
 Return JSON only (no markdown fences):
 {{
-  "card_name": "name of the card or bank as printed on the statement",
+  "card_name": "full name of the card or account as printed on the statement",
+  "bank_id": "short lowercase bank identifier (e.g. scb, dbs, ocbc, citi, uob, hsbc, posb, maybank)",
+  "account_type": "credit or debit",
   "transactions": [
     {{"date": "YYYY-MM-DD", "description": "merchant name", "amount": 12.50}},
     ...
@@ -109,8 +113,11 @@ Return JSON only (no markdown fences):
 }}
 
 Rules:
-- amount is always a positive number (the spend amount in the statement currency)
-- Skip credits, refunds, payments, and any negative amounts
+- account_type: "credit" for credit cards, "debit" for debit cards, savings, or current accounts
+- bank_id: the bank abbreviation only (not the card product name)
+- amount is always a positive number (the spend/debit amount)
+- For credit statements: skip credits, refunds, payments, and any negative amounts
+- For debit statements: skip incoming transfers, deposits, interest — only include outgoing payments/purchases
 - date must be ISO format YYYY-MM-DD
 - description must be a clean, human-readable merchant name:
   * Remove order IDs, booking codes, random alphanumeric suffixes (e.g. "AIRBNB * HMD2S4Q5EC" → "Airbnb")
@@ -167,7 +174,20 @@ Rules:
         data = json.loads(text)
 
         detected_name = data.get("card_name", "")
-        self.card_name = self._match_card_name(detected_name) or detected_name or "Unknown"
+        self.card_name = detected_name or "Unknown"
+
+        bank_id = re.sub(r"[^a-z0-9]+", "-", data.get("bank_id", "unknown").lower()).strip("-") or "unknown"
+        account_type = data.get("account_type", "credit").lower()
+        if account_type == "debit":
+            self.offset_account = f"assets:bank:{bank_id}"
+        else:
+            self.offset_account = f"liabilities:creditcard:{bank_id}"
+
+        # Allow config to override offset_account
+        override = self._config_override(detected_name)
+        if override:
+            self.card_name = override["name"]
+            self.offset_account = override.get("offset_account", self.offset_account)
 
         transactions: list[Transaction] = []
         for item in data.get("transactions", []):
@@ -185,13 +205,13 @@ Rules:
 
         return transactions
 
-    def _match_card_name(self, detected: str) -> str | None:
-        """Match AI-detected card name to a configured card name."""
+    def _config_override(self, detected: str) -> dict | None:
+        """Return a matching card config entry if the user has defined one, else None."""
         if not detected:
             return None
         detected_lower = detected.lower()
         for card in self._cards:
             name = card["name"].lower()
             if name in detected_lower or detected_lower in name:
-                return card["name"]
+                return card
         return None

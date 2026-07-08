@@ -52,6 +52,7 @@ def _parse_amount(raw: str) -> float | None:
 class DBSParser(BaseParser):
     IDENTIFIERS = ["DBS BANK", "POSB", "DBS ALTITUDE", "DBS BANK LTD"]
     card_name = "DBS Altitude"
+    offset_account = "liabilities:creditcard:dbs"
 
     def parse(self, pdf_path: str) -> list[Transaction]:
         transactions: list[Transaction] = []

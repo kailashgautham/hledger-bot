@@ -57,14 +57,6 @@ def is_allowed(user_id: int) -> bool:
     return not allowed or user_id in allowed
 
 
-def card_config_for(card_name: str) -> dict:
-    needle = card_name.lower()
-    for card in config.get("cards", []):
-        name = card["name"].lower()
-        if name == needle or name in needle or needle in name:
-            return card
-    return {"name": card_name, "liability_account": "liabilities:creditcard:unknown"}
-
 
 def _keyboard(idx: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
@@ -148,11 +140,11 @@ async def _finish_session(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     card_name = session["card_name"]
-    card_cfg = card_config_for(card_name)
+    offset_account = session["offset_account"]
     all_txns = session["auto_categorized"] + session["confirmed"]
     todo_txns = session["todo"]
 
-    skipped = writer.append_transactions(all_txns + todo_txns, card_cfg)
+    skipped = writer.append_transactions(all_txns + todo_txns, offset_account)
 
     if all_txns or todo_txns:
         end_date = session["end_date"]
@@ -249,13 +241,14 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         os.unlink(pdf_path)
 
     await _process_transactions(
-        parser.card_name, transactions, status_msg, chat_id, context,
+        parser.card_name, parser.offset_account, transactions, status_msg, chat_id, context,
         source="PDF"
     )
 
 
 async def _process_transactions(
     card_name: str,
+    offset_account: str,
     transactions: list,
     status_msg,
     chat_id: int,
@@ -308,6 +301,7 @@ async def _process_transactions(
 
     user_sessions[chat_id] = {
         "card_name": card_name,
+        "offset_account": offset_account,
         "auto_categorized": auto_categorized,
         "pending": pending,
         "confirmed": [],
@@ -357,7 +351,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         os.unlink(img_path)
 
     await _process_transactions(
-        ai_parser.card_name, transactions, status_msg, chat_id, context,
+        ai_parser.card_name, ai_parser.offset_account, transactions, status_msg, chat_id, context,
         source="image"
     )
 
