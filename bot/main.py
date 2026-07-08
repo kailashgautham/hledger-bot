@@ -532,6 +532,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if not text:
             await update.message.reply_text("Name can't be empty.")
             return
+        tx = session["pending"][idx]
+        if "original_description" not in tx:
+            session["pending"][idx]["original_description"] = tx["description"]
         session["pending"][idx]["description"] = text
         session["waiting_for_name"] = False
         await update.message.reply_text(f"Name updated to `{text}`.", parse_mode=ParseMode.MARKDOWN)

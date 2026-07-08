@@ -45,14 +45,19 @@ class JournalWriter:
                     payee = None
         return examples[-n:]
 
-    def transaction_exists(self, date: str, description: str, amount: float) -> bool:
-        """Check for an existing entry with same date+description+amount."""
+    def transaction_exists(self, date: str, original_description: str, amount: float) -> bool:
+        """Check for duplicate by date + original AI description (in ; orig: comment) + amount."""
         if not self.path.exists():
             return False
-        pattern = f"{date} {description}"
         amount_str = f"{self.currency} {amount:.2f}"
         text = self.path.read_text()
-        return pattern in text and amount_str in text
+        # Match against stored original description comment
+        orig_pattern = f"; orig: {original_description}".lower()
+        if orig_pattern in text.lower() and amount_str in text:
+            return True
+        # Fallback: match display name for entries written before this change
+        display_pattern = f"{date} {original_description}".lower()
+        return display_pattern in text.lower() and amount_str in text
 
     # ------------------------------------------------------------------
     # Writing
@@ -77,7 +82,8 @@ class JournalWriter:
         skipped: list[dict] = []
 
         for tx in sorted(transactions, key=lambda t: t["date"]):
-            if self.transaction_exists(tx["date"], tx["description"], tx["amount"]):
+            original = tx.get("original_description") or tx["description"]
+            if self.transaction_exists(tx["date"], original, tx["amount"]):
                 skipped.append(tx)
                 continue
             blocks.append(self._format_entry(tx, offset_account))
@@ -93,19 +99,19 @@ class JournalWriter:
         account = tx.get("account")
         amount_str = f"{self.currency} {tx['amount']:.2f}"
         is_income = tx.get("type") == "income"
+        original = tx.get("original_description") or tx["description"]
+        orig_comment = f"  ; orig: {original}" if original != tx["description"] else ""
 
         if is_income:
-            # Money in: debit the bank/card account, credit income
             income_account = account or "income:unknown"
             return (
-                f"{tx['date']} {tx['description']}\n"
+                f"{tx['date']} {tx['description']}{orig_comment}\n"
                 f"    {offset_account:<40}{amount_str}\n"
                 f"    {income_account}\n"
             )
         elif account:
-            # Money out: debit expense, credit bank/card account
             return (
-                f"{tx['date']} {tx['description']}\n"
+                f"{tx['date']} {tx['description']}{orig_comment}\n"
                 f"    {account:<40}{amount_str}\n"
                 f"    {offset_account}\n"
             )
