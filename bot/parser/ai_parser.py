@@ -120,7 +120,7 @@ Rules:
 - type: "expense" for money going out (purchases, payments, fees, ATM withdrawals), "income" for money coming in (salary, transfers in, interest, cashback, refunds)
 - For credit card statements: include expenses AND income (refunds/cashback); skip payment of the card bill itself
 - For debit/bank statements: include ALL transactions — expenses (purchases, bills, transfers out) AND income (salary, transfers in, interest)
-- date must be ISO format YYYY-MM-DD
+- date must be ISO format YYYY-MM-DD; if a row has no date shown, inherit the last visible date above it (bank statements often show the date only on the first transaction of a day)
 - description must be a clean, human-readable merchant or sender name:
   * Remove order IDs, booking codes, random alphanumeric suffixes (e.g. "AIRBNB * HMD2S4Q5EC" → "Airbnb")
   * Remove URL prefixes/domains (e.g. "WWW.TADA.GLOBAL" → "Tada", "WWW_CONTABO_COM" → "Contabo")
