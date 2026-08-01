@@ -8,6 +8,7 @@ import time
 
 import pdfplumber  # type: ignore
 
+from ..state import match_card_name
 from .base import BaseParser, Transaction
 
 logger = logging.getLogger(__name__)
@@ -112,6 +113,7 @@ class AIParser(BaseParser):
 
     def _extraction_prompt(self, content: str) -> str:
         body = f"\nStatement text:\n{content}" if content != "<image>" else ""
+        year = self._current_year()
         return f"""Extract all transactions from this bank statement.
 
 Return JSON only (no markdown fences):
@@ -133,6 +135,7 @@ Rules:
 - type: "expense" for money going out (purchases, payments, fees, ATM withdrawals), "income" for money coming in (salary, transfers in, interest, cashback, refunds)
 - For credit card statements: include expenses AND income (refunds/cashback); skip payment of the card bill itself
 - For debit/bank statements: include ALL transactions — expenses (purchases, bills, transfers out) AND income (salary, transfers in, interest)
+- THE STATEMENT IS FROM {year}. Every transaction date MUST be in {year} — if a row shows no year, or the year printed on the statement is cut off/unreadable, use {year}. Never guess 2023 or 2024.
 - date must be ISO format YYYY-MM-DD; if a row has no date shown, inherit the last visible date above it (bank statements often show the date only on the first transaction of a day)
 - description must be a clean, human-readable merchant or sender name:
   * Remove order IDs, booking codes, random alphanumeric suffixes (e.g. "AIRBNB * HMD2S4Q5EC" → "Airbnb")
@@ -140,6 +143,12 @@ Rules:
   * Remove payment prefixes (e.g. "fp*Food Panda" → "Food Panda", "Grab* A-98OLA4OGW3W" → "Grab")
   * Convert ALL CAPS to Title Case (e.g. "LUCKIN COFFEE" → "Luckin Coffee")
   * Keep well-known brand names as-is in proper casing (e.g. "McDonald's", "Airbnb", "Shopee"){body}"""
+
+    @staticmethod
+    def _current_year() -> int:
+        from datetime import date
+
+        return date.today().year
 
     def parse(self, pdf_path: str) -> list[Transaction]:
         try:
@@ -228,9 +237,11 @@ Rules:
         """Return a matching card config entry if the user has defined one, else None."""
         if not detected:
             return None
-        detected_lower = detected.lower()
+        names = [card["name"] for card in self._cards]
+        match = match_card_name(detected, names)
+        if match is None:
+            return None
         for card in self._cards:
-            name = card["name"].lower()
-            if name in detected_lower or detected_lower in name:
+            if card["name"] == match:
                 return card
         return None

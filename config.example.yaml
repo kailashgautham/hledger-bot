@@ -6,6 +6,10 @@ hledger:
   journal_path: ~/finance/journal.hledger
   git_branch: main
 
+# Optional: canonical card names. The AI-detected card name is fuzzy-matched
+# against these, so each card is tracked under one stable name/account.
+# Used by the AI parser (offset_account) and to stabilise the "last processed"
+# state key.
 cards:
   - name: DBS Altitude
     liability_account: liabilities:creditcard:dbs
@@ -13,6 +17,13 @@ cards:
   - name: OCBC 90N
     liability_account: liabilities:creditcard:ocbc
     parser: ocbc
+  - name: UOB One
+    offset_account: assets:bank:uob
+
+# Statements are always from the current year, but the vision model often
+# misreads the year. When true, every parsed transaction's year is forced to
+# the current year after parsing.
+force_current_year: true
 
 currency: SGD
 
