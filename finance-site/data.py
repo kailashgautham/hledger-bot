@@ -144,11 +144,14 @@ def compute_insights(monthly, monthly_cats, tx_view, this_month) -> dict:
                       "title": "Biggest purchase",
                       "body": f"{biggest['description']} — {_fmt(abs(biggest['amount']))} on {biggest['date']}."})
 
-    cards.append({"tone": "info",
-                  "title": f"{_fmt(exp)} spent in {_month_label(target)}",
-                  "body": f"~{_fmt(daily)} a day across {len(exps)} transactions."})
-
-    return {"month": target, "month_label": _month_label(target), "cards": cards}
+    return {
+        "month": target,
+        "month_label": _month_label(target),
+        "spent": round(exp, 2),
+        "daily_avg": round(daily, 2),
+        "count": len(exps),
+        "cards": cards,
+    }
 
 
 def build_data(text: str, currency: str = "SGD") -> dict:

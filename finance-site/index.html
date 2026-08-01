@@ -74,6 +74,7 @@
   .insights-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
   .insights-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
   .insights-month { font-size: 12px; font-weight: 600; }
+  .insights-summary { font-size: 12px; margin-left: auto; }
   .insights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
   .insight {
     background: linear-gradient(160deg, var(--card), var(--card-2));
@@ -152,6 +153,7 @@
     <div class="insights-head">
       <span class="insights-title">Monthly insights</span>
       <span class="insights-month muted" id="insights-month"></span>
+      <span class="insights-summary muted" id="insights-summary"></span>
     </div>
     <div class="insights-grid" id="insights-grid"></div>
   </section>
@@ -231,6 +233,8 @@ function renderInsights() {
   if (!ins || !ins.cards || !ins.cards.length) { section.hidden = true; return; }
   section.hidden = false;
   document.getElementById('insights-month').textContent = ins.month_label;
+  document.getElementById('insights-summary').textContent =
+    `${cur.format(ins.spent)} spent · ~${cur.format(ins.daily_avg)}/day · ${ins.count} transactions`;
   document.getElementById('insights-grid').innerHTML = ins.cards.map(c =>
     `<div class="insight ${c.tone}"><h4><span class="dot"></span>${esc(c.title)}</h4><p>${esc(c.body)}</p></div>`).join('');
 }
