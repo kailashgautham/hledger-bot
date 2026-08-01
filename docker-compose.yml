@@ -9,3 +9,27 @@ services:
     environment:
       # Override journal path to the mounted volume location
       - JOURNAL_PATH=/finance/journal.hledger
+
+  # Public finance dashboard at finance.gkailash.com (routed via the Cloudflare
+  # tunnel: public hostname -> http://finance-site:8080). Joins the mnemo tunnel's
+  # network so cloudflared can reach it by service name.
+  finance-site:
+    build: ./finance-site
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - SITE_USER=${FINANCE_SITE_USER}
+      - SITE_PASS=${FINANCE_SITE_PASS}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ~/finance:/finance:ro
+    networks:
+      - default
+      - mnemo
+
+networks:
+  mnemo:
+    external: true
+    name: mnemo_default
+

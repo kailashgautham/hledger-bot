@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Finance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0e16;
+    --card: #111826;
+    --card-2: #16202f;
+    --border: rgba(148, 163, 184, 0.14);
+    --text: #e6ecf5;
+    --muted: #8ea0b8;
+    --accent: #6366f1;
+    --accent-2: #22d3ee;
+    --green: #34d399;
+    --red: #f87171;
+    --amber: #fbbf24;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background:
+      radial-gradient(1100px 500px at 85% -10%, rgba(99,102,241,0.14), transparent 60%),
+      radial-gradient(900px 450px at -10% 10%, rgba(34,211,238,0.10), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  header { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 28px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    font-weight: 800; font-size: 18px; color: #fff; box-shadow: 0 8px 24px rgba(99,102,241,0.35);
+  }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .asof { color: var(--muted); font-size: 13px; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 18px; }
+  .stat {
+    background: linear-gradient(160deg, var(--card), var(--card-2));
+    border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  }
+  .stat .label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .stat .value { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .stat .hint { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .stat.net .value { background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  .grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; margin-bottom: 18px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } .split { grid-template-columns: 1fr !important; } }
+  .card {
+    background: linear-gradient(160deg, var(--card), var(--card-2));
+    border: 1px solid var(--border); border-radius: 16px; padding: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  }
+  .card h3 { font-size: 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
+  .chart-box { position: relative; height: 260px; }
+
+  .insights { margin-bottom: 18px; }
+  .insights-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+  .insights-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .insights-month { font-size: 12px; font-weight: 600; }
+  .insights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .insight {
+    background: linear-gradient(160deg, var(--card), var(--card-2));
+    border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+  }
+  .insight .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; flex: none; }
+  .insight h4 { font-size: 13px; font-weight: 700; display: flex; align-items: center; margin-bottom: 6px; }
+  .insight p { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .insight.good .dot { background: var(--green); box-shadow: 0 0 10px rgba(52,211,153,0.6); }
+  .insight.warn .dot { background: var(--amber); box-shadow: 0 0 10px rgba(251,191,36,0.6); }
+  .insight.bad .dot { background: var(--red); box-shadow: 0 0 10px rgba(248,113,113,0.6); }
+  .insight.info .dot { background: var(--accent-2); box-shadow: 0 0 10px rgba(34,211,238,0.6); }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+  .acct-group + .acct-group { margin-top: 14px; }
+  .acct-group .head { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .acct-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 2px; border-bottom: 1px dashed var(--border); font-size: 14px; }
+  .acct-row:last-child { border-bottom: none; }
+  .acct-row .name { color: var(--muted); }
+  .acct-row .val { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .acct-row.liab .val { color: var(--red); }
+
+  .tools { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .tools input, .tools select {
+    background: var(--card-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 10px; padding: 9px 12px; font-size: 13px; font-family: inherit; outline: none;
+  }
+  .tools input { flex: 1; min-width: 180px; }
+  .tools input:focus, .tools select:focus { border-color: var(--accent); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  td { padding: 9px 8px; border-bottom: 1px solid rgba(148,163,184,0.07); vertical-align: top; }
+  tr:hover td { background: rgba(99,102,241,0.06); }
+  .desc { font-weight: 600; }
+  .accs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .chip { font-size: 11px; color: var(--muted); background: rgba(148,163,184,0.12); border-radius: 6px; padding: 2px 7px; }
+  .amt { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .amt.pos { color: var(--green); }
+  .amt.neg { color: var(--red); }
+  .amt.transfer { color: var(--muted); }
+  .empty { color: var(--muted); text-align: center; padding: 28px; font-size: 13px; }
+
+  .muted { color: var(--muted); }
+  .fade-in { animation: fade .45s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  @media (max-width: 640px) {
+    .wrap { padding: 20px 14px 48px; }
+    .stat .value { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo">$</div>
+      <div>
+        <h1>Finance</h1>
+        <div class="sub" id="asof"></div>
+      </div>
+    </div>
+    <div class="asof" id="networth-tag"></div>
+  </header>
+
+  <section class="stats fade-in">
+    <div class="stat net"><div class="label">Net worth</div><div class="value" id="net-worth">—</div><div class="hint" id="net-worth-hint"></div></div>
+    <div class="stat"><div class="label">Assets</div><div class="value" id="assets">—</div></div>
+    <div class="stat"><div class="label">Liabilities</div><div class="value" id="liabilities">—</div></div>
+    <div class="stat"><div class="label">This month</div><div class="value" id="month-net">—</div><div class="hint" id="month-hint"></div></div>
+  </section>
+
+  <section class="insights fade-in" id="insights-section" hidden>
+    <div class="insights-head">
+      <span class="insights-title">Monthly insights</span>
+      <span class="insights-month muted" id="insights-month"></span>
+    </div>
+    <div class="insights-grid" id="insights-grid"></div>
+  </section>
+
+  <section class="grid fade-in">
+    <div class="card"><h3>Monthly cash flow</h3><div class="chart-box"><canvas id="flowChart"></canvas></div></div>
+    <div class="card"><h3>Spending by category</h3><div class="chart-box"><canvas id="catChart"></canvas></div></div>
+  </section>
+
+  <section class="split fade-in">
+    <div class="card">
+      <h3>Accounts</h3>
+      <div class="acct-group" id="assets-group"><div class="head">Assets</div></div>
+      <div class="acct-group" id="liab-group"><div class="head">Liabilities</div></div>
+    </div>
+    <div class="card">
+      <h3>Income sources</h3>
+      <div id="income-cats"></div>
+    </div>
+  </section>
+
+  <section class="card fade-in">
+    <h3>Transactions</h3>
+    <div class="tools">
+      <input id="search" type="text" placeholder="Search description or account…">
+      <select id="typeFilter">
+        <option value="all">All</option>
+        <option value="income">Income</option>
+        <option value="expense">Expenses</option>
+        <option value="transfer">Transfers</option>
+      </select>
+      <select id="monthFilter"><option value="all">All months</option></select>
+    </div>
+    <div style="overflow-x:auto;"><table>
+      <thead><tr><th>Date</th><th>Description</th><th>Accounts</th><th style="text-align:right">Amount</th></tr></thead>
+      <tbody id="txn-body"></tbody>
+    </table></div>
+    <div class="empty" id="txn-empty" hidden>No transactions match.</div>
+  </section>
+</div>
+
+<script>
+const cur = new Intl.NumberFormat('en-SG', { style: 'currency', currency: 'SGD', minimumFractionDigits: 2 });
+const state = { data: null, month: 'all', type: 'all', q: '' };
+let flowChart, catChart;
+
+async function load() {
+  const res = await fetch('/api/data');
+  if (!res.ok) throw new Error('data failed');
+  state.data = await res.json();
+  render();
+}
+
+function render() {
+  const d = state.data;
+  document.getElementById('asof').textContent = 'Journal data · as of ' + d.as_of;
+  document.getElementById('net-worth').textContent = cur.format(d.net_worth);
+  document.getElementById('assets').textContent = cur.format(d.assets);
+  document.getElementById('liabilities').textContent = cur.format(d.liabilities);
+  const mn = d.month.income - d.month.expenses;
+  document.getElementById('month-net').textContent = cur.format(mn);
+  document.getElementById('month-hint').textContent = (mn >= 0 ? 'saved ' : 'overspent ') + cur.format(Math.abs(mn)) + ' in ' + d.month.key;
+  document.getElementById('networth-hint').textContent = d.assets + ' assets · ' + d.liabilities + ' liabilities';
+
+  renderFlow();
+  renderCats();
+  renderAccounts();
+  renderIncomeCats();
+  renderInsights();
+  renderMonths();
+  renderTxns();
+}
+
+function renderInsights() {
+  const ins = state.data.insights;
+  const section = document.getElementById('insights-section');
+  if (!ins || !ins.cards || !ins.cards.length) { section.hidden = true; return; }
+  section.hidden = false;
+  document.getElementById('insights-month').textContent = ins.month_label;
+  document.getElementById('insights-grid').innerHTML = ins.cards.map(c =>
+    `<div class="insight ${c.tone}"><h4><span class="dot"></span>${esc(c.title)}</h4><p>${esc(c.body)}</p></div>`).join('');
+}
+
+function renderFlow() {
+  const labels = state.data.monthly.map(m => m.month);
+  const income = state.data.monthly.map(m => m.income);
+  const expenses = state.data.monthly.map(m => m.expenses);
+  const ctx = document.getElementById('flowChart');
+  if (flowChart) flowChart.destroy();
+  flowChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Income', data: income, backgroundColor: 'rgba(52,211,153,0.85)', borderRadius: 6, maxBarThickness: 34 },
+      { label: 'Expenses', data: expenses, backgroundColor: 'rgba(248,113,113,0.85)', borderRadius: 6, maxBarThickness: 34 },
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#8ea0b8', usePointStyle: true, pointStyleWidth: 8, boxHeight: 8 } } },
+      scales: {
+        x: { ticks: { color: '#8ea0b8' }, grid: { color: 'rgba(148,163,184,0.08)' } },
+        y: { ticks: { color: '#8ea0b8', callback: v => 'SGD ' + v }, grid: { color: 'rgba(148,163,184,0.08)' } },
+      },
+    },
+  });
+}
+
+const PALETTE = ['#6366f1','#22d3ee','#34d399','#fbbf24','#f87171','#a78bfa','#2dd4bf','#f472b6','#fb923c','#94a3b8','#818cf8','#67e8f9'];
+
+function renderCats() {
+  const cats = state.data.expense_categories.slice(0, 9);
+  const other = state.data.expense_categories.slice(9).reduce((s, c) => s + c.amount, 0);
+  const labels = cats.map(c => c.account.replace('expenses:', ''));
+  const values = cats.map(c => c.amount);
+  if (other > 0) { labels.push('Other'); values.push(Math.round(other * 100) / 100); }
+  const ctx = document.getElementById('catChart');
+  if (catChart) catChart.destroy();
+  catChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: values, backgroundColor: PALETTE, borderColor: '#111826', borderWidth: 3 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '62%',
+      plugins: {
+        legend: { position: 'right', labels: { color: '#8ea0b8', boxWidth: 10, boxHeight: 10, usePointStyle: true, padding: 10, font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + cur.format(c.parsed) } },
+      },
+    },
+  });
+}
+
+function renderAccounts() {
+  const ag = document.getElementById('assets-group');
+  ag.innerHTML = '<div class="head">Assets</div>' + state.data.accounts.assets.map(a =>
+    `<div class="acct-row"><span class="name">${a.account.replace('assets:', '')}</span><span class="val">${cur.format(a.amount)}</span></div>`).join('');
+  const lg = document.getElementById('liab-group');
+  lg.innerHTML = '<div class="head">Liabilities</div>' + (state.data.accounts.liabilities.length
+    ? state.data.accounts.liabilities.map(a =>
+      `<div class="acct-row liab"><span class="name">${a.account.replace('liabilities:', '')}</span><span class="val">${cur.format(a.amount)}</span></div>`).join('')
+    : '<div class="muted" style="padding:8px 0">None</div>');
+}
+
+function renderIncomeCats() {
+  const el = document.getElementById('income-cats');
+  const inc = state.data.income_categories;
+  el.innerHTML = inc.length ? inc.map(c =>
+    `<div class="acct-row"><span class="name">${c.account.replace('income:', '')}</span><span class="val">${cur.format(c.amount)}</span></div>`).join('')
+    : '<div class="muted" style="padding:8px 0">None yet</div>';
+}
+
+function renderMonths() {
+  const sel = document.getElementById('monthFilter');
+  const val = sel.value;
+  sel.innerHTML = '<option value="all">All months</option>' + state.data.monthly.slice().reverse().map(m =>
+    `<option value="${m.month}">${m.month}</option>`).join('');
+  sel.value = val;
+}
+
+function renderTxns() {
+  const { data, month, type, q } = state;
+  const ql = q.toLowerCase();
+  const rows = data.transactions.filter(t => {
+    if (month !== 'all' && !t.date.startsWith(month)) return false;
+    if (type !== 'all' && t.type !== type) return false;
+    if (ql && !(t.description.toLowerCase().includes(ql) || t.accounts.some(a => a.toLowerCase().includes(ql)))) return false;
+    return true;
+  });
+  const body = document.getElementById('txn-body');
+  const empty = document.getElementById('txn-empty');
+  empty.hidden = rows.length > 0;
+  body.innerHTML = rows.slice(0, 200).map(t => {
+    const cls = t.amount > 0 ? 'pos' : (t.amount < 0 ? 'neg' : 'transfer');
+    const sign = t.type === 'expense' ? '−' : (t.amount >= 0 ? '+' : '−');
+    return `<tr>
+      <td class="muted">${t.date}</td>
+      <td class="desc">${esc(t.description)}</td>
+      <td><div class="accs">${t.accounts.map(a => `<span class="chip">${esc(a)}</span>`).join('')}</div></td>
+      <td class="amt ${cls}">${sign}${cur.format(Math.abs(t.amount))}</td>
+    </tr>`;
+  }).join('');
+}
+
+function esc(s) { return s.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+document.getElementById('search').addEventListener('input', e => { state.q = e.target.value; renderTxns(); });
+document.getElementById('typeFilter').addEventListener('change', e => { state.type = e.target.value; renderTxns(); });
+document.getElementById('monthFilter').addEventListener('change', e => { state.month = e.target.value; renderTxns(); });
+
+load().catch(err => {
+  document.getElementById('net-worth').textContent = 'Error loading data';
+});
+</script>
+</body>
+</html>

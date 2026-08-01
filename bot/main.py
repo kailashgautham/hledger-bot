@@ -767,7 +767,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         session["waiting_for_name"] = False
         session["waiting_for_split"] = False
         await query.edit_message_text(
-            f"Type an account name for `{tx['description']}`\n(e.g. `expenses:food:dining`):",
+            f"Type an account name for `{tx['description']}`\n(e.g. `expenses:food`):",
             parse_mode=ParseMode.MARKDOWN,
         )
 

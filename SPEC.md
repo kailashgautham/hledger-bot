@@ -44,7 +44,7 @@ Bot: "Found 12 transactions from 2025-05-28 to 2025-06-04. Processing..."
 
 Bot: "How should I categorise this?
       GRAB* 12345  SGD 18.50  (2025-06-01)
-      My best guess: expenses:food:dining
+      My best guess: expenses:food
       [✅ Confirm] [✏️ Change] [⏭ Skip]"
 
 ... (repeats for uncertain transactions only) ...
@@ -53,7 +53,7 @@ Bot: "All done! Here's a summary:
       ✅ 9 auto-categorised
       ✅ 3 confirmed by you
       
-      expenses:food:dining       SGD 62.40
+      expenses:food              SGD 62.40
       expenses:transport         SGD 23.10
       expenses:shopping          SGD 154.00
       
