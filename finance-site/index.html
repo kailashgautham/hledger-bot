@@ -23,7 +23,7 @@
     --amber: #fbbf24;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html { -webkit-font-smoothing: antialiased; }
+  html { -webkit-font-smoothing: antialiased; overflow-x: clip; }
   body {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     background:
@@ -32,6 +32,7 @@
       var(--bg);
     color: var(--text);
     min-height: 100vh;
+    overflow-x: clip;
   }
   .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 64px; }
 
@@ -65,7 +66,9 @@
     box-shadow: 0 10px 30px rgba(0,0,0,0.25);
   }
   .card h3 { font-size: 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
-  .chart-box { position: relative; height: 260px; }
+  .chart-box { position: relative; height: 260px; min-width: 0; overflow: hidden; }
+  canvas { max-width: 100%; }
+  .grid > *, .split > *, .stats > *, .insights-grid > * { min-width: 0; }
 
   .insights { margin-bottom: 18px; }
   .insights-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
@@ -268,13 +271,13 @@ function renderCats() {
   catChart = new Chart(ctx, {
     type: 'doughnut',
     data: { labels, datasets: [{ data: values, backgroundColor: PALETTE, borderColor: '#111826', borderWidth: 3 }] },
-    options: {
-      responsive: true, maintainAspectRatio: false, cutout: '62%',
-      plugins: {
-        legend: { position: 'right', labels: { color: '#8ea0b8', boxWidth: 10, boxHeight: 10, usePointStyle: true, padding: 10, font: { size: 11 } } },
-        tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + cur.format(c.parsed) } },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '62%',
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#8ea0b8', boxWidth: 10, boxHeight: 10, usePointStyle: true, padding: 10, font: { size: 11 } } },
+          tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + cur.format(c.parsed) } },
+        },
       },
-    },
   });
 }
 
