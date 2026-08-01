@@ -211,7 +211,7 @@ function render() {
   const mn = d.month.income - d.month.expenses;
   document.getElementById('month-net').textContent = cur.format(mn);
   document.getElementById('month-hint').textContent = (mn >= 0 ? 'saved ' : 'overspent ') + cur.format(Math.abs(mn)) + ' in ' + d.month.key;
-  document.getElementById('networth-hint').textContent = d.assets + ' assets · ' + d.liabilities + ' liabilities';
+  document.getElementById('net-worth-hint').textContent = d.assets + ' assets · ' + d.liabilities + ' liabilities';
 
   renderFlow();
   renderCats();
