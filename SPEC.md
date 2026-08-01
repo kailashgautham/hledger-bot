@@ -171,7 +171,7 @@ git push origin main
 | _(send a PDF)_ | Triggers the main flow |
 | `/status` | Shows last processed date per card, and any `; TODO` entries pending |
 | `/accounts` | Lists all hledger accounts found in your journal |
-| `/reconcile` | Lists balance-sheet accounts (assets/liabilities) with computed balances; pick one, enter the actual balance from your statement, and settle any difference via an `equity:reconciling` adjustment (with a balance assertion) |
+| `/reconcile` | Lists balance-sheet accounts (assets/liabilities) with computed balances; pick one (or use 🔄 Reconcile All to go through every account one by one), enter the actual balance from your statement, and settle any difference via an `equity:reconciling` adjustment (with a balance assertion) |
 | `/undo` | Reverts the last commit (runs `git revert HEAD`) |
 | `/merchants` | Shows the current merchant map |
 

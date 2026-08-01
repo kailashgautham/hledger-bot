@@ -235,14 +235,55 @@ def _reconcile_accounts_view(chat_id: int) -> tuple[str, InlineKeyboardMarkup]:
             marker = "  ✅" if abs(total - reconciled[acc]["balance"]) < 0.005 else "  🔄"
         lines.append(f"  `{acc:<40}` {currency} {total:.2f}{marker}")
         keyboard.append([InlineKeyboardButton(acc, callback_data=f"rec|{i}")])
+    keyboard.append([InlineKeyboardButton("🔄 Reconcile All", callback_data="recall")])
     return "\n".join(lines), InlineKeyboardMarkup(keyboard)
+
+
+def _reconcile_next(rec: dict) -> str | None:
+    """Next account in reconcile-all mode, or None when every account is done."""
+    accounts = rec.get("accounts", [])
+    idx = rec.get("all_idx", 0)
+    return accounts[idx] if idx < len(accounts) else None
+
+
+async def _prompt_for_balance(
+    chat_id: int, context: ContextTypes.DEFAULT_TYPE, account: str
+) -> None:
+    """Ask the user to enter the actual statement balance for `account`."""
+    session = user_sessions[chat_id]
+    rec = session["reconcile"]
+    currency = config.get("currency", "SGD")
+    rec["account"] = account
+    rec["computed"] = account_total(rec["balances"], account, currency)
+    session["waiting_for_balance"] = True
+
+    msg = (
+        f"*Reconcile: `{account}`*\n"
+        f"Current computed balance: `{currency} {rec['computed']:.2f}`\n\n"
+        f"Enter the actual balance from your statement\n"
+        f"(same sign as above, e.g. `-924.64` for a liability):"
+    )
+    if rec.get("all"):
+        total = len(rec.get("accounts", []))
+        msg += f"\n\nAccount {rec['all_idx'] + 1} of {total}"
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("⏭ Skip", callback_data="recskip")],
+            [InlineKeyboardButton("« Back", callback_data="recback")],
+        ])
+    else:
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("« Back", callback_data="recback")],
+        ])
+    await context.bot.send_message(
+        chat_id=chat_id, text=msg, parse_mode=ParseMode.MARKDOWN, reply_markup=kb
+    )
 
 
 async def _finish_reconcile(
     chat_id: int, context: ContextTypes.DEFAULT_TYPE, settle: bool
 ) -> None:
     session = user_sessions.get(chat_id)
-    rec = (session or {}).pop("reconcile", None)
+    rec = (session or {}).get("reconcile")
     if not rec or not session:
         return
     session["waiting_for_balance"] = False
@@ -255,6 +296,8 @@ async def _finish_reconcile(
 
     if settle:
         writer.append_reconciliation_entry(today, account, diff, actual)
+        journal = Path(config["hledger"]["journal_path"])
+        rec["balances"] = account_balances(journal.read_text())
 
     state_mgr.set_reconciled(account, actual, today)
 
@@ -275,6 +318,22 @@ async def _finish_reconcile(
     await context.bot.send_message(
         chat_id=chat_id, text=msg, parse_mode=ParseMode.MARKDOWN
     )
+
+    if rec.get("all"):
+        rec["all_idx"] = rec.get("all_idx", 0) + 1
+        next_account = _reconcile_next(rec)
+        if next_account:
+            await _prompt_for_balance(chat_id, context, next_account)
+            return
+        session.pop("reconcile", None)
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="🎉 All accounts reconciled.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    session.pop("reconcile", None)
 
 
 async def _handle_balance_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -387,6 +446,22 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
 
 
+def _normalize_dates(transactions: list) -> None:
+    """Force every transaction's year to the current year, in place.
+
+    Bank statements are always from the current year, but vision/OCR models
+    frequently misread the year (picking 2023/2024 instead of the current
+    year) when a row shows no year. `force_current_year` defaults to true.
+    """
+    if not config.get("force_current_year", True):
+        return
+    year = date.today().year
+    for tx in transactions:
+        d = tx.get("date")
+        if isinstance(d, str) and len(d) == 10 and d[4] == "-":
+            tx["date"] = f"{year}{d[4:]}"
+
+
 async def _process_transactions(
     card_name: str,
     offset_account: str,
@@ -399,6 +474,13 @@ async def _process_transactions(
     if not transactions:
         await status_msg.edit_text(f"❌ No transactions found in the {source}.")
         return
+
+    # Canonicalise the card name so state filtering is stable regardless of
+    # how the AI spells the card on any given run.
+    configured_names = [c["name"] for c in config.get("cards", [])]
+    card_name = state_mgr.canonical_card_name(card_name, configured_names)
+
+    _normalize_dates(transactions)
 
     last_date = state_mgr.get_last_date(card_name)
     new_txns = [
@@ -554,8 +636,47 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await query.edit_message_text("Reconciliation cancelled.")
         return
 
+    if query.data == "recall":
+        rec = session.get("reconcile")
+        if not rec:
+            return
+        rec["all"] = True
+        rec["all_idx"] = 0
+        session["waiting_for_balance"] = False
+        await query.edit_message_text("🔄 Reconciling all accounts one by one…")
+        next_account = _reconcile_next(rec)
+        if next_account:
+            await _prompt_for_balance(chat_id, context, next_account)
+        else:
+            session.pop("reconcile", None)
+        return
+
+    if query.data == "recskip":
+        rec = session.get("reconcile")
+        if not rec or not rec.get("all"):
+            return
+        account = rec.get("account", "")
+        session["waiting_for_balance"] = False
+        await query.edit_message_text(f"⏭ Skipped `{account}`.")
+        rec["all_idx"] = rec.get("all_idx", 0) + 1
+        next_account = _reconcile_next(rec)
+        if next_account:
+            await _prompt_for_balance(chat_id, context, next_account)
+        else:
+            session.pop("reconcile", None)
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="🎉 All accounts reconciled.",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        return
+
     if query.data == "recback":
         session["waiting_for_balance"] = False
+        rec = session.get("reconcile")
+        if rec:
+            rec.pop("all", None)
+            rec.pop("all_idx", None)
         text, keyboard = _reconcile_accounts_view(chat_id)
         await query.edit_message_text(
             text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
@@ -572,24 +693,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         if not rec or idx >= len(accounts):
             return
         account = accounts[idx]
-        currency = config.get("currency", "SGD")
-        rec["account"] = account
-        rec["computed"] = account_total(
-            rec["balances"], account, currency
-        )
-        session["waiting_for_balance"] = True
-        msg = (
-            f"*Reconcile: `{account}`*\n"
-            f"Current computed balance: `{currency} {rec['computed']:.2f}`\n\n"
-            f"Enter the actual balance from your statement\n"
-            f"(same sign as above, e.g. `-924.64` for a liability):"
-        )
-        kb = InlineKeyboardMarkup([
-            [InlineKeyboardButton("« Back", callback_data="recback")],
-        ])
+        rec["all"] = False
+        rec.pop("all_idx", None)
         await query.edit_message_text(
-            msg, parse_mode=ParseMode.MARKDOWN, reply_markup=kb
+            f"Reconciling `{account}`…", parse_mode=ParseMode.MARKDOWN
         )
+        await _prompt_for_balance(chat_id, context, account)
         return
 
     idx = int(parts[1])
