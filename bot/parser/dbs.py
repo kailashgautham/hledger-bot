@@ -5,8 +5,8 @@ Expected layout (pdfplumber table or text):
   Transaction Date | Description | Amount (SGD)
   01 May 25        | GRABFOOD    | 12.50
 
-Credits (refunds) are typically marked "CR" after the amount or appear
-in a separate credit column — we skip those (they reduce liability, not an expense).
+Credits (refunds, cashback) are typically marked "CR" after the amount or
+appear as a negative figure — these are recorded as income transactions.
 """
 import logging
 import re
@@ -92,10 +92,11 @@ class DBSParser(BaseParser):
             if not date or not desc:
                 continue
             amount = _parse_amount(amount_raw)
-            if amount is None or amount <= 0:
+            if amount is None or amount == 0:
                 continue
+            tx_type = "income" if amount < 0 else "expense"
             transactions.append(
-                Transaction(date=date, description=desc, amount=round(amount, 2))
+                Transaction(date=date, description=desc, amount=round(abs(amount), 2), type=tx_type)
             )
         return transactions
 
@@ -116,9 +117,10 @@ class DBSParser(BaseParser):
                 continue
             desc = m.group(2).strip()
             amount = _parse_amount(m.group(3))
-            if amount is None or amount <= 0:
+            if amount is None or amount == 0:
                 continue
+            tx_type = "income" if amount < 0 else "expense"
             transactions.append(
-                Transaction(date=date, description=desc, amount=round(amount, 2))
+                Transaction(date=date, description=desc, amount=round(abs(amount), 2), type=tx_type)
             )
         return transactions

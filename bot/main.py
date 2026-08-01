@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import tempfile
+from datetime import date
 from pathlib import Path
 
 from telegram import (
@@ -21,6 +22,7 @@ from telegram.ext import (
     filters,
 )
 
+from .balances import account_balances, account_total
 from .categoriser import Categoriser
 from .config import journal_dir, load_config, merchant_map_path, state_path
 from .git_ops import GitOps
@@ -47,6 +49,10 @@ git_ops: GitOps
 
 # Per-user session: user_id → session dict
 user_sessions: dict[int, dict] = {}
+
+
+def _get_session(chat_id: int) -> dict:
+    return user_sessions.setdefault(chat_id, {})
 
 
 # ------------------------------------------------------------------
@@ -203,6 +209,137 @@ async def _finish_session(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> N
         chat_id=chat_id,
         text="\n".join(lines),
         parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+# ------------------------------------------------------------------
+# Reconciliation
+# ------------------------------------------------------------------
+
+def _reconcile_accounts_view(chat_id: int) -> tuple[str, InlineKeyboardMarkup]:
+    session = user_sessions[chat_id]
+    rec = session["reconcile"]
+    currency = config.get("currency", "SGD")
+    balances = rec["balances"]
+    accounts = [
+        a for a in sorted(balances) if a.startswith(("assets:", "liabilities:"))
+    ]
+    rec["accounts"] = accounts
+    reconciled = state_mgr.get_reconciled()
+    lines = ["*Reconcile — pick an account:*", ""]
+    keyboard: list[list[InlineKeyboardButton]] = []
+    for i, acc in enumerate(accounts):
+        total = account_total(balances, acc, currency)
+        marker = ""
+        if acc in reconciled:
+            marker = "  ✅" if abs(total - reconciled[acc]["balance"]) < 0.005 else "  🔄"
+        lines.append(f"  `{acc:<40}` {currency} {total:.2f}{marker}")
+        keyboard.append([InlineKeyboardButton(acc, callback_data=f"rec|{i}")])
+    return "\n".join(lines), InlineKeyboardMarkup(keyboard)
+
+
+async def _finish_reconcile(
+    chat_id: int, context: ContextTypes.DEFAULT_TYPE, settle: bool
+) -> None:
+    session = user_sessions.get(chat_id)
+    rec = (session or {}).pop("reconcile", None)
+    if not rec or not session:
+        return
+    session["waiting_for_balance"] = False
+
+    account = rec["account"]
+    actual = rec["actual"]
+    diff = rec["diff"]
+    currency = config.get("currency", "SGD")
+    today = date.today().isoformat()
+
+    if settle:
+        writer.append_reconciliation_entry(today, account, diff, actual)
+
+    state_mgr.set_reconciled(account, actual, today)
+
+    jpath = config["hledger"]["journal_path"]
+    jdir = journal_dir(config)
+    files = [str(Path(jpath).relative_to(jdir)), "state.json"]
+    success, err = git_ops.commit_and_push(f"Reconcile {account} ({today})", files)
+
+    if settle:
+        msg = (
+            f"✅ *{account}* settled.\n"
+            f"Adjusted {currency} {diff:+.2f} → balance now `{currency} {actual:.2f}`."
+        )
+    else:
+        msg = f"✅ *{account}* reconciled — balance matches `{currency} {actual:.2f}`."
+    msg += "\nCommitted & pushed." if success else f"\n⚠️ {err}"
+
+    await context.bot.send_message(
+        chat_id=chat_id, text=msg, parse_mode=ParseMode.MARKDOWN
+    )
+
+
+async def _handle_balance_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = update.effective_chat.id
+    session = user_sessions[chat_id]
+    rec = session.get("reconcile")
+    if not rec:
+        return
+    text = update.message.text.strip().replace(",", "").replace("SGD", "").strip()
+    try:
+        actual = float(text)
+    except ValueError:
+        await update.message.reply_text(
+            "Please enter a number (e.g. `-924.64` or `924.64`)."
+        )
+        return
+
+    account = rec["account"]
+    computed = rec["computed"]
+    diff = round(actual - computed, 2)
+    rec["actual"] = actual
+    rec["diff"] = diff
+    currency = config.get("currency", "SGD")
+
+    if abs(diff) < 0.005:
+        await update.message.reply_text("Reconciled ✅ — recording…")
+        await _finish_reconcile(chat_id, context, settle=False)
+        return
+
+    msg = (
+        f"*Reconcile {account}*\n"
+        f"Computed:  `{currency} {computed:.2f}`\n"
+        f"Actual:    `{currency} {actual:.2f}`\n"
+        f"Difference: `{currency} {diff:+.2f}`\n\n"
+        f"Settle by adding an adjustment to `equity:reconciling`?"
+    )
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Settle", callback_data="settle")],
+        [InlineKeyboardButton("❌ Cancel", callback_data="reccancel")],
+    ])
+    await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
+
+
+async def cmd_reconcile(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not is_allowed(update.effective_user.id):
+        return
+    chat_id = update.effective_chat.id
+    journal = Path(config["hledger"]["journal_path"])
+    if not journal.exists():
+        await update.message.reply_text("No journal file found yet.")
+        return
+
+    balances = account_balances(journal.read_text())
+    session = _get_session(chat_id)
+    session["reconcile"] = {"balances": balances}
+    session["waiting_for_balance"] = False
+
+    text, keyboard = _reconcile_accounts_view(chat_id)
+    if not keyboard.inline_keyboard:
+        await update.message.reply_text(
+            "No balance-sheet accounts (assets:/liabilities:) found in the journal."
+        )
+        return
+    await update.message.reply_text(
+        text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
     )
 
 
@@ -364,9 +501,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await tg_file.download_to_drive(img_path)
 
         ai_parser = AIParser(config)
-        if not ai_parser.available:
+        if not ai_parser.vision_available:
             await status_msg.edit_text(
-                "❌ AI parser not configured. Set GROQ_API_KEY or GOOGLE_API_KEY."
+                "❌ Image parsing needs GOOGLE_API_KEY (Groq has no vision model available)."
             )
             return
 
@@ -406,8 +543,55 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         return
 
+    if query.data == "settle":
+        await query.edit_message_text("Settling…")
+        await _finish_reconcile(chat_id, context, settle=True)
+        return
+
+    if query.data == "reccancel":
+        session["waiting_for_balance"] = False
+        session.pop("reconcile", None)
+        await query.edit_message_text("Reconciliation cancelled.")
+        return
+
+    if query.data == "recback":
+        session["waiting_for_balance"] = False
+        text, keyboard = _reconcile_accounts_view(chat_id)
+        await query.edit_message_text(
+            text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
+        )
+        return
+
     parts = query.data.split("|")
     action = parts[0]
+
+    if action == "rec":
+        idx = int(parts[1])
+        rec = session.get("reconcile")
+        accounts = (rec or {}).get("accounts", [])
+        if not rec or idx >= len(accounts):
+            return
+        account = accounts[idx]
+        currency = config.get("currency", "SGD")
+        rec["account"] = account
+        rec["computed"] = account_total(
+            rec["balances"], account, currency
+        )
+        session["waiting_for_balance"] = True
+        msg = (
+            f"*Reconcile: `{account}`*\n"
+            f"Current computed balance: `{currency} {rec['computed']:.2f}`\n\n"
+            f"Enter the actual balance from your statement\n"
+            f"(same sign as above, e.g. `-924.64` for a liability):"
+        )
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("« Back", callback_data="recback")],
+        ])
+        await query.edit_message_text(
+            msg, parse_mode=ParseMode.MARKDOWN, reply_markup=kb
+        )
+        return
+
     idx = int(parts[1])
 
     if idx != session["current_idx"]:
@@ -504,6 +688,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     text = update.message.text.strip()
 
+    if session.get("waiting_for_balance") and session.get("reconcile"):
+        await _handle_balance_input(update, context)
+        return
+
     if session.get("waiting_for_card"):
         if not text:
             await update.message.reply_text("Card name can't be empty.")
@@ -523,6 +711,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             parse_mode=ParseMode.MARKDOWN,
         )
         await _start_categorisation(chat_id, context)
+        return
+
+    if not session.get("pending"):
         return
 
     idx = session["current_idx"]
@@ -672,6 +863,7 @@ def main() -> None:
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("accounts", cmd_accounts))
+    app.add_handler(CommandHandler("reconcile", cmd_reconcile))
     app.add_handler(CommandHandler("undo", cmd_undo))
     app.add_handler(CommandHandler("merchants", cmd_merchants))
 

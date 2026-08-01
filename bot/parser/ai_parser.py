@@ -24,11 +24,16 @@ class AIParser(BaseParser):
         self.model_name = ai.get("model", "")
         self._cards = config.get("cards", [])
         self._client = self._init_client()
+        self._vision_provider, self._vision_client = self._init_vision_client()
         self._config = config
 
     @property
     def available(self) -> bool:
         return self._client is not None
+
+    @property
+    def vision_available(self) -> bool:
+        return self._vision_client is not None
 
     def _init_client(self):
         if self.provider == "gemini":
@@ -54,10 +59,29 @@ class AIParser(BaseParser):
 
         return None
 
+    def _init_vision_client(self):
+        """Groq currently has no vision-capable model on the free tier, so
+        images always go through Gemini regardless of the configured text provider."""
+        if self.provider == "gemini":
+            return "gemini", self._client
+        try:
+            import google.generativeai as genai  # type: ignore
+            api_key = os.environ.get("GOOGLE_API_KEY")
+            if not api_key:
+                return None, None
+            genai.configure(api_key=api_key)
+            return "gemini", genai.GenerativeModel("gemini-2.5-flash")
+        except ImportError:
+            return None, None
+
     def detect(self, text: str) -> bool:
         return self.available
 
     def parse_image(self, image_path: str) -> list[Transaction]:
+        if not self.vision_available:
+            logger.error("AIParser: no vision-capable AI provider configured (set GOOGLE_API_KEY)")
+            return []
+
         with open(image_path, "rb") as f:
             b64 = base64.b64encode(f.read()).decode()
 
@@ -78,24 +102,13 @@ class AIParser(BaseParser):
         return []
 
     def _call_vision(self, b64_image: str, prompt: str) -> str:
-        if self.provider == "groq":
-            resp = self._client.chat.completions.create(
-                model="meta-llama/llama-4-scout-17b-16e-instruct",
-                messages=[{"role": "user", "content": [
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"}},
-                    {"type": "text", "text": prompt},
-                ]}],
-                temperature=0.0,
-            )
-            return resp.choices[0].message.content
-
-        if self.provider == "gemini":
+        if self._vision_provider == "gemini":
             import PIL.Image
             import io
             img = PIL.Image.open(io.BytesIO(base64.b64decode(b64_image)))
-            return self._client.generate_content([prompt, img]).text
+            return self._vision_client.generate_content([prompt, img]).text
 
-        raise RuntimeError("No AI provider configured")
+        raise RuntimeError("No vision-capable AI provider configured")
 
     def _extraction_prompt(self, content: str) -> str:
         body = f"\nStatement text:\n{content}" if content != "<image>" else ""
@@ -194,8 +207,8 @@ Rules:
         transactions: list[Transaction] = []
         for item in data.get("transactions", []):
             try:
-                amount = float(item["amount"])
-                if amount <= 0:
+                amount = abs(float(item["amount"]))
+                if amount == 0:
                     continue
                 tx_type = str(item.get("type", "expense")).lower()
                 if tx_type not in ("expense", "income"):

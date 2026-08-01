@@ -95,6 +95,32 @@ class JournalWriter:
 
         return skipped
 
+    def append_reconciliation_entry(
+        self, date_str: str, account: str, adjustment: float, actual_balance: float
+    ) -> None:
+        """Append a reconciliation adjustment entry with a balance assertion."""
+        if abs(adjustment) < 0.005:
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        if not self.path.exists():
+            self.path.write_text("")
+
+        amount_str = self._fmt_amount(adjustment)
+        offset_str = self._fmt_amount(-adjustment)
+        actual_num = f"{'-' if actual_balance < 0 else ''}{abs(actual_balance):.2f}"
+        block = (
+            f"{date_str} Reconcile {account}\n"
+            f"    {account:<40}{amount_str}  = {self.currency} {actual_num}\n"
+            f"    {'equity:reconciling':<40}{offset_str}\n"
+        )
+        existing = self.path.read_text()
+        separator = "\n" if existing and not existing.endswith("\n\n") else ""
+        self.path.write_text(existing + separator + block)
+
+    def _fmt_amount(self, value: float) -> str:
+        sign = "-" if value < 0 else ""
+        return f"{self.currency} {sign}{abs(value):.2f}"
+
     def _format_entry(self, tx: dict, offset_account: str) -> str:
         account = tx.get("account")
         amount_str = f"{self.currency} {tx['amount']:.2f}"

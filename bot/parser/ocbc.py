@@ -5,7 +5,8 @@ Expected layout:
   Date       | Description                | Amount
   01/05/25   | FAIRPRICE FINEST           | 25.30
 
-Credits (refunds) are marked with a leading minus or "CR" suffix.
+Credits (refunds, cashback) are marked with a leading minus or "CR" suffix —
+these are recorded as income transactions.
 """
 import logging
 import re
@@ -89,10 +90,11 @@ class OCBCParser(BaseParser):
             if not date or not desc:
                 continue
             amount = _parse_amount(amount_raw)
-            if amount is None or amount <= 0:
+            if amount is None or amount == 0:
                 continue
+            tx_type = "income" if amount < 0 else "expense"
             transactions.append(
-                Transaction(date=date, description=desc, amount=round(amount, 2))
+                Transaction(date=date, description=desc, amount=round(abs(amount), 2), type=tx_type)
             )
         return transactions
 
@@ -109,9 +111,10 @@ class OCBCParser(BaseParser):
                 continue
             desc = m.group(2).strip()
             amount = _parse_amount(m.group(3))
-            if amount is None or amount <= 0:
+            if amount is None or amount == 0:
                 continue
+            tx_type = "income" if amount < 0 else "expense"
             transactions.append(
-                Transaction(date=date, description=desc, amount=round(amount, 2))
+                Transaction(date=date, description=desc, amount=round(abs(amount), 2), type=tx_type)
             )
         return transactions

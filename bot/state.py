@@ -25,6 +25,23 @@ class StateManager:
             self._data.setdefault("card_last_dates", {})[card] = date_str
         self._save()
 
+    def set_reconciled(self, account: str, balance: float, date_str: Optional[str] = None) -> None:
+        reconciled = self._data.setdefault("reconciled", {})
+        reconciled[account] = {
+            "date": date_str or self._today(),
+            "balance": round(balance, 2),
+        }
+        self._save()
+
+    def get_reconciled(self) -> dict:
+        return dict(self._data.get("reconciled", {}))
+
+    @staticmethod
+    def _today() -> str:
+        from datetime import date
+
+        return date.today().isoformat()
+
     def to_dict(self) -> dict:
         return dict(self._data)
 
