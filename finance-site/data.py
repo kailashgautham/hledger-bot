@@ -8,6 +8,24 @@ from balances import account_balances, account_total, parse_amount
 _DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
 _STATUS_RE = re.compile(r"^[!*]\s*")
 
+BUDGETS: dict[str, float] = {
+    "expenses:food": 200,
+    "expenses:fitness": 90,
+    "expenses:subscriptions": 20,
+    "expenses:entertainment": 50,
+    "expenses:transportation": 80,
+}
+OTHERS_BUDGET = 60.0
+OTHERS_ACCOUNT = "expenses:other"
+OTHERS_EXCLUDE = {"expenses:taxes", "expenses:donation"}
+LABELS: dict[str, str] = {
+    "expenses:food": "Food",
+    "expenses:fitness": "Fitness",
+    "expenses:subscriptions": "Subscriptions",
+    "expenses:entertainment": "Entertainment",
+    "expenses:transportation": "Transport",
+}
+
 
 def parse_transactions(text: str) -> list[dict]:
     """Return [{date, description, postings:[{account, amount}]}]."""
@@ -164,7 +182,7 @@ def build_data(text: str, currency: str = "SGD") -> dict:
     monthly: dict[str, dict] = defaultdict(lambda: {"income": 0.0, "expenses": 0.0})
     monthly_cats: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     expense_cats: dict[str, float] = defaultdict(float)
-    income_cats: dict[str, float] = defaultdict(float)
+    monthly_income: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     tx_view = []
 
     for t in txns:
@@ -194,13 +212,44 @@ def build_data(text: str, currency: str = "SGD") -> dict:
                 expense_cats[p["account"]] += abs(p["amount"])
                 monthly_cats[month][p["account"]] += abs(p["amount"])
             elif p["account"].startswith("income:"):
-                income_cats[p["account"]] += abs(p["amount"])
+                monthly_income[month][p["account"]] += abs(p["amount"])
 
     tx_view.sort(key=lambda t: t["date"], reverse=True)
     months = sorted(monthly)
     today = date.today().isoformat()
     this_month = today[:7]
     tm = monthly.get(this_month, {"income": 0.0, "expenses": 0.0})
+
+    insights = compute_insights(monthly, {m: dict(c) for m, c in monthly_cats.items()},
+                                tx_view, this_month)
+    budget_month = this_month
+    budget_cats = {a: v for a, v in monthly_cats.get(budget_month, {}).items() if v > 0}
+    budget_rows = []
+    for acct, spent in sorted(BUDGETS.items(), key=lambda kv: -budget_cats.get(kv[0], 0.0)):
+        budget = BUDGETS[acct]
+        spent = budget_cats.get(acct, 0.0)
+        budget_rows.append({
+            "account": acct,
+            "label": LABELS.get(acct, acct.replace("expenses:", "").title()),
+            "spent": round(spent, 2),
+            "budget": budget,
+            "pct": round(spent / budget * 100, 1),
+            "over": spent > budget,
+            "warn": not (spent > budget) and spent >= budget * 0.75,
+            "members": [acct],
+        })
+    others = {a: v for a, v in budget_cats.items() if a not in BUDGETS and a not in OTHERS_EXCLUDE}
+    others_total = sum(others.values())
+    budget_rows.append({
+        "account": OTHERS_ACCOUNT,
+        "label": "Other",
+        "spent": round(others_total, 2),
+        "budget": OTHERS_BUDGET,
+        "pct": round(others_total / OTHERS_BUDGET * 100, 1),
+        "over": others_total > OTHERS_BUDGET,
+        "warn": not (others_total > OTHERS_BUDGET) and others_total >= OTHERS_BUDGET * 0.75,
+        "members": sorted(others.keys()),
+    })
 
     def by_magnitude(items: dict[str, float]) -> list[dict]:
         return [{"account": a, "amount": round(v, 2)} for a, v in
@@ -226,7 +275,12 @@ def build_data(text: str, currency: str = "SGD") -> dict:
              "expenses": round(monthly[m]["expenses"], 2)} for m in months if m <= this_month
         ],
         "expense_categories": by_magnitude(expense_cats),
-        "income_categories": by_magnitude(income_cats),
+        "income_categories": by_magnitude(monthly_income.get(this_month, {})),
+        "budgets": {
+            "month": budget_month,
+            "month_label": _month_label(budget_month),
+            "items": budget_rows,
+        },
         "accounts": {
             "assets": by_magnitude({a: account_total(balances, a, currency) for a in balances if a.startswith("assets:")}),
             "liabilities": by_magnitude({a: account_total(balances, a, currency) for a in balances if a.startswith("liabilities:")}),

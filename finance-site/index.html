@@ -2,203 +2,642 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Finance</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tally</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-title" content="Tally">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
-  :root {
-    --bg: #0a0e16;
-    --card: #111826;
-    --card-2: #16202f;
-    --border: rgba(148, 163, 184, 0.14);
-    --text: #e6ecf5;
-    --muted: #8ea0b8;
-    --accent: #6366f1;
-    --accent-2: #22d3ee;
-    --green: #34d399;
-    --red: #f87171;
-    --amber: #fbbf24;
+  @font-face {
+    font-family: 'SF Pro Text';
+    src: url('https://cdn.jsdelivr.net/npm/sf-pro@1.0.3/font/woff2/sf-pro-text_regular.woff2') format('woff2');
+    font-weight: 400; font-display: swap;
   }
+  @font-face {
+    font-family: 'SF Pro Text';
+    src: url('https://cdn.jsdelivr.net/npm/sf-pro@1.0.3/font/woff2/sf-pro-text_semibold.woff2') format('woff2');
+    font-weight: 600; font-display: swap;
+  }
+  @font-face {
+    font-family: 'SF Pro Display';
+    src: url('https://cdn.jsdelivr.net/npm/sf-pro@1.0.3/font/woff2/sf-pro-display_regular.woff2') format('woff2');
+    font-weight: 400; font-display: swap;
+  }
+  @font-face {
+    font-family: 'SF Pro Display';
+    src: url('https://cdn.jsdelivr.net/npm/sf-pro@1.0.3/font/woff2/sf-pro-display_medium.woff2') format('woff2');
+    font-weight: 500; font-display: swap;
+  }
+  @font-face {
+    font-family: 'SF Pro Display';
+    src: url('https://cdn.jsdelivr.net/npm/sf-pro@1.0.3/font/woff2/sf-pro-display_semibold.woff2') format('woff2');
+    font-weight: 600; font-display: swap;
+  }
+  @font-face {
+    font-family: 'SF Pro Display';
+    src: url('https://cdn.jsdelivr.net/npm/sf-pro@1.0.3/font/woff2/sf-pro-display_bold.woff2') format('woff2');
+    font-weight: 700; font-display: swap;
+  }
+  :root {
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+    --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+    --r-xl: 28px; --r-lg: 22px; --r-md: 16px; --r-sm: 12px;
+    --blur: blur(28px) saturate(180%);
+    --tabbar-blur: blur(40px) saturate(200%);
+    --shadow-lg: 0 24px 60px -24px rgba(0, 0, 0, 0.6);
+    --shadow-md: 0 14px 40px -18px rgba(0, 0, 0, 0.55);
+    --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f2f2f7;
+      --blob-a: rgba(0, 122, 255, 0.16);
+      --blob-b: rgba(175, 82, 222, 0.11);
+      --blob-c: rgba(255, 45, 85, 0.09);
+      --glass-fill: rgba(255, 255, 255, 0.72);
+      --glass-fill-2: rgba(255, 255, 255, 0.5);
+      --glass-border: rgba(0, 0, 0, 0.08);
+      --glass-hi: rgba(255, 255, 255, 0.95);
+      --input-fill: rgba(255, 255, 255, 0.6);
+      --tabbar-fill: rgba(248, 248, 250, 0.78);
+      --text: #000000;
+      --secondary: #6c6c70;
+      --tertiary: #98989e;
+      --sep: rgba(0, 0, 0, 0.08);
+      --tint: #007AFF;
+      --tint-2: #5AC8FA;
+      --green: #34C759; --red: #FF3B30; --amber: #FF9500; --purple: #AF52DE;
+      --blue: #007AFF; --teal: #5AC8FA; --pink: #FF2D55; --indigo: #5856D6;
+      --palette: #007AFF, #AF52DE, #FF2D55, #FF9500, #34C759, #5AC8FA, #FFCC00, #FF3B30, #5856D6, #A2845E, #8E8E93, #FF3A5A;
+      --chart-grid: rgba(0, 0, 0, 0.08);
+      --dot-border: #ffffff;
+      --tone-good: rgba(52, 199, 89, 0.14); --tone-warn: rgba(255, 149, 0, 0.14);
+      --tone-bad: rgba(255, 59, 48, 0.14); --tone-info: rgba(0, 122, 255, 0.14);
+    }
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --blob-a: rgba(64, 122, 255, 0.26);
+      --blob-b: rgba(191, 90, 242, 0.18);
+      --blob-c: rgba(255, 55, 95, 0.12);
+      --glass-fill: rgba(255, 255, 255, 0.08);
+      --glass-fill-2: rgba(255, 255, 255, 0.05);
+      --glass-border: rgba(255, 255, 255, 0.14);
+      --glass-hi: rgba(255, 255, 255, 0.22);
+      --input-fill: rgba(255, 255, 255, 0.06);
+      --tabbar-fill: rgba(24, 24, 27, 0.72);
+      --text: #ffffff;
+      --secondary: #c7c7cc;
+      --tertiary: #98989e;
+      --sep: rgba(255, 255, 255, 0.08);
+      --tint: #0A84FF;
+      --tint-2: #64D2FF;
+      --green: #30D158; --red: #FF453A; --amber: #FF9F0A; --purple: #BF5AF2;
+      --blue: #0A84FF; --teal: #64D2FF; --pink: #FF375F; --indigo: #5E5CE6;
+      --palette: #0A84FF, #BF5AF2, #FF375F, #FF9F0A, #30D158, #64D2FF, #FFD60A, #FF453A, #5E5CE6, #AC8E68, #98989E, #FF6482;
+      --chart-grid: rgba(255, 255, 255, 0.08);
+      --dot-border: #000000;
+      --tone-good: rgba(48, 209, 88, 0.16); --tone-warn: rgba(255, 159, 10, 0.16);
+      --tone-bad: rgba(255, 69, 58, 0.16); --tone-info: rgba(10, 132, 255, 0.16);
+    }
+  }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html { -webkit-font-smoothing: antialiased; overflow-x: clip; }
+  button, input, select { font-family: inherit; }
+  html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; overflow-x: clip; }
   body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background:
-      radial-gradient(1100px 500px at 85% -10%, rgba(99,102,241,0.14), transparent 60%),
-      radial-gradient(900px 450px at -10% 10%, rgba(34,211,238,0.10), transparent 55%),
-      var(--bg);
+    font-family: var(--font);
     color: var(--text);
+    background: var(--bg);
     min-height: 100vh;
     overflow-x: clip;
   }
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 64px; }
-
-  header { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 28px; }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .logo {
-    width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
-    background: linear-gradient(135deg, var(--accent), var(--accent-2));
-    font-weight: 800; font-size: 18px; color: #fff; box-shadow: 0 8px 24px rgba(99,102,241,0.35);
+  .backdrop {
+    position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(60rem 42rem at 85% -12%, var(--blob-a), transparent 62%),
+      radial-gradient(52rem 36rem at -12% 22%, var(--blob-b), transparent 58%),
+      radial-gradient(46rem 34rem at 55% 118%, var(--blob-c), transparent 60%),
+      var(--bg);
   }
-  h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
-  .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
-  .asof { color: var(--muted); font-size: 13px; }
 
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 18px; }
-  .stat {
-    background: linear-gradient(160deg, var(--card), var(--card-2));
-    border: 1px solid var(--border); border-radius: 16px; padding: 18px 20px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-  }
-  .stat .label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
-  .stat .value { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; margin-top: 6px; font-variant-numeric: tabular-nums; }
-  .stat .hint { font-size: 12px; color: var(--muted); margin-top: 3px; }
-  .stat.net .value { background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  main { max-width: 1180px; margin: 0 auto; padding: 44px 24px 132px; }
+  @media (max-width: 640px) { main { padding: 28px 16px 118px; } }
 
-  .grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; margin-bottom: 18px; }
-  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } .split { grid-template-columns: 1fr !important; } }
-  .card {
-    background: linear-gradient(160deg, var(--card), var(--card-2));
-    border: 1px solid var(--border); border-radius: 16px; padding: 20px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  .glass {
+    background: var(--glass-fill);
+    -webkit-backdrop-filter: var(--blur);
+    backdrop-filter: var(--blur);
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow-md);
   }
-  .card h3 { font-size: 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
+  .press { transition: transform .2s var(--ease), box-shadow .2s var(--ease); }
+  .press:active { transform: scale(0.975); }
+
+  /* ── Navigation header ─────────────────────────── */
+  .nav { margin-bottom: 30px; }
+  .nav-title {
+    font-family: var(--font-display);
+    font-size: 36px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.05;
+  }
+  .nav-sub { font-size: 13px; font-weight: 500; color: var(--tertiary); margin-top: 6px; }
+
+  /* ── Stats ─────────────────────────────────────── */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
+  @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 480px) { .stats { grid-template-columns: 1fr 1fr; gap: 10px; } }
+  .stat { padding: 18px 20px; border-radius: var(--r-lg); position: relative; overflow: hidden; }
+  .stat::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(120% 90% at 0% 0%, var(--glass-hi), transparent 45%);
+    opacity: .35; pointer-events: none;
+  }
+  .stat .label { font-size: 12px; font-weight: 500; color: var(--secondary); letter-spacing: 0.01em; }
+  .stat .value {
+    font-family: var(--font-display);
+    font-size: 28px; font-weight: 600; letter-spacing: -0.03em; margin-top: 6px;
+    font-variant-numeric: tabular-nums; line-height: 1.1;
+  }
+  .stat .hint { font-size: 12px; color: var(--tertiary); margin-top: 4px; }
+  .stat.net .value {
+    background: linear-gradient(135deg, var(--tint), var(--purple));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+
+  /* ── Section titles ────────────────────────────── */
+  .section-label {
+    display: flex; align-items: baseline; gap: 10px;
+    font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -0.01em;
+    margin: 22px 8px 12px;
+  }
+  .section-label .sub { font-size: 13px; font-weight: 500; color: var(--tertiary); margin-left: auto; }
+
+  /* ── Chart cards ───────────────────────────────── */
+  .grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; margin-bottom: 16px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .card { border-radius: var(--r-xl); padding: 22px; }
+  .card > * { min-width: 0; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--secondary); letter-spacing: -0.01em; margin-bottom: 16px; }
+  .card-title-sub { color: var(--tertiary); font-size: 11px; font-weight: 600; margin-left: 6px; }
   .chart-box { position: relative; height: 260px; min-width: 0; overflow: hidden; }
   canvas { max-width: 100%; }
-  .grid > *, .split > *, .stats > *, .insights-grid > * { min-width: 0; }
 
-  .insights { margin-bottom: 18px; }
-  .insights-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
-  .insights-title { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
-  .insights-month { font-size: 12px; font-weight: 600; }
-  .insights-summary { font-size: 12px; margin-left: auto; }
-  .insights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
-  .insight {
-    background: linear-gradient(160deg, var(--card), var(--card-2));
-    border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+  /* ── Insight cards ─────────────────────────────── */
+  .insights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+  .insight { border-radius: var(--r-lg); padding: 16px 18px; }
+  .insight h4 { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: 9px; margin-bottom: 5px; }
+  .insight .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .insight p { font-size: 13px; color: var(--secondary); line-height: 1.5; }
+  .insight.good { background: var(--tone-good); border: 1px solid rgba(48, 209, 88, 0.28); }
+  .insight.good .dot { background: var(--green); }
+  .insight.warn { background: var(--tone-warn); border: 1px solid rgba(255, 159, 10, 0.28); }
+  .insight.warn .dot { background: var(--amber); }
+  .insight.bad { background: var(--tone-bad); border: 1px solid rgba(255, 69, 58, 0.28); }
+  .insight.bad .dot { background: var(--red); }
+  .insight.info { background: var(--tone-info); border: 1px solid rgba(10, 132, 255, 0.28); }
+  .insight.info .dot { background: var(--tint); }
+
+  /* ── Grouped lists (accounts / income) ─────────── */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+  @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+  .group { border-radius: var(--r-xl); padding: 6px 18px; }
+  .group-head {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 600; color: var(--tertiary);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 12px 2px 6px;
   }
-  .insight .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; flex: none; }
-  .insight h4 { font-size: 13px; font-weight: 700; display: flex; align-items: center; margin-bottom: 6px; }
-  .insight p { font-size: 13px; color: var(--muted); line-height: 1.5; }
-  .insight.good .dot { background: var(--green); box-shadow: 0 0 10px rgba(52,211,153,0.6); }
-  .insight.warn .dot { background: var(--amber); box-shadow: 0 0 10px rgba(251,191,36,0.6); }
-  .insight.bad .dot { background: var(--red); box-shadow: 0 0 10px rgba(248,113,113,0.6); }
-  .insight.info .dot { background: var(--accent-2); box-shadow: 0 0 10px rgba(34,211,238,0.6); }
-
-  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
-  .acct-group + .acct-group { margin-top: 14px; }
-  .acct-group .head { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
-  .acct-row { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 2px; border-bottom: 1px dashed var(--border); font-size: 14px; }
-  .acct-row:last-child { border-bottom: none; }
-  .acct-row .name { color: var(--muted); }
-  .acct-row .val { font-weight: 600; font-variant-numeric: tabular-nums; }
-  .acct-row.liab .val { color: var(--red); }
-
-  .tools { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
-  .tools input, .tools select {
-    background: var(--card-2); color: var(--text); border: 1px solid var(--border);
-    border-radius: 10px; padding: 9px 12px; font-size: 13px; font-family: inherit; outline: none;
+  .acct-group + .acct-group .group-head { border-top: 1px solid var(--sep); margin-top: 4px; }
+  .row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 12px; padding: 11px 2px; border-bottom: 1px solid var(--sep);
+    font-size: 14px;
   }
-  .tools input { flex: 1; min-width: 180px; }
-  .tools input:focus, .tools select:focus { border-color: var(--accent); }
+  .row:last-child { border-bottom: none; }
+  .row .name { color: var(--secondary); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .row .val { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .row.liab .val { color: var(--red); }
 
+  /* ── Budgets ───────────────────────────────────── */
+  .budget-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 32px; }
+  @media (max-width: 900px) { .budget-grid { grid-template-columns: 1fr; } }
+  .budget-row {
+    display: block; width: 100%; text-align: left; cursor: pointer;
+    background: transparent; border: none; font: inherit; color: inherit;
+    padding: 12px 8px; border-radius: 12px; border-bottom: 1px solid var(--sep);
+    transition: background .18s var(--ease);
+  }
+  .budget-row:last-child { border-bottom: none; }
+  .budget-row:hover { background: var(--input-fill); }
+  .budget-row:active { transform: scale(0.99); }
+  .budget-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .budget-name { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+  .budget-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .budget-amt { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .budget-of { font-size: 12px; font-weight: 500; color: var(--tertiary); }
+  .budget-track { height: 6px; margin: 9px 0 7px; border-radius: 999px; background: var(--input-fill); overflow: hidden; }
+  .budget-fill { height: 100%; border-radius: 999px; width: 0; transition: width .7s var(--ease); }
+  .budget-foot { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 600; }
+  .budget-status { color: var(--tertiary); }
+  .budget-status.over { color: var(--red); }
+  .budget-tag { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 999px; }
+  .budget-tag.over { color: var(--red); background: var(--tone-bad); }
+  .budget-tag.warn { color: var(--amber); background: var(--tone-warn); }
+  .budget-tag.ok { color: var(--green); background: var(--tone-good); }
+
+  /* ── Bottom sheet ──────────────────────────────── */
+  [hidden] { display: none !important; }
+  .sheet-backdrop {
+    position: fixed; inset: 0; z-index: 60;
+    display: flex; align-items: flex-end; justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    animation: fadeIn .3s var(--ease);
+  }
+  .sheet {
+    width: 100%; max-width: 640px; max-height: min(78vh, 720px);
+    display: flex; flex-direction: column;
+    background: var(--tabbar-fill);
+    -webkit-backdrop-filter: var(--tabbar-blur); backdrop-filter: var(--tabbar-blur);
+    border: 1px solid var(--glass-border); border-bottom: none;
+    border-radius: 26px 26px 0 0;
+    box-shadow: inset 0 1px 0 var(--glass-hi), 0 -20px 60px -20px rgba(0, 0, 0, 0.6);
+    animation: sheetUp .4s var(--ease);
+  }
+  .grabber { width: 38px; height: 5px; border-radius: 999px; background: var(--tertiary); opacity: .4; margin: 10px auto 2px; flex: none; }
+  .sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 22px 10px; }
+  .sheet-title { font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+  .sheet-sub { font-size: 13px; color: var(--secondary); margin-top: 2px; }
+  .sheet-close {
+    width: 32px; height: 32px; border-radius: 50%; flex: none;
+    border: 1px solid var(--glass-border); background: var(--input-fill);
+    color: var(--secondary); display: grid; place-items: center; cursor: pointer;
+    transition: color .18s var(--ease);
+  }
+  .sheet-close:hover { color: var(--text); }
+  .sheet-close svg { width: 14px; height: 14px; }
+  .sheet-list { overflow-y: auto; padding: 0 22px calc(20px + env(safe-area-inset-bottom)); }
+  .sheet-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--sep); }
+  .sheet-row:last-child { border-bottom: none; }
+  .sheet-desc { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+  .sheet-meta { font-size: 12px; color: var(--tertiary); margin-top: 2px; }
+  .sheet-amt { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .sheet-amt.neg { color: var(--red); }
+  @keyframes sheetUp { from { transform: translateY(100%); } to { transform: none; } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* ── Tools / filters ───────────────────────────── */
+  .tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .search { position: relative; flex: 1; min-width: 200px; }
+  .search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--tertiary); pointer-events: none; }
+  .search input {
+    width: 100%; padding: 10px 12px 10px 34px;
+    background: var(--input-fill); color: var(--text);
+    border: 1px solid var(--glass-border); border-radius: var(--r-sm);
+    font: 400 14px var(--font); outline: none;
+    -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  }
+  .search input::placeholder { color: var(--tertiary); }
+  .search input:focus { border-color: var(--tint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tint) 25%, transparent); }
+
+  .segmented {
+    display: inline-flex; gap: 2px; padding: 3px;
+    background: var(--input-fill); border: 1px solid var(--glass-border);
+    border-radius: var(--r-sm);
+    -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  }
+  .seg {
+    border: none; background: transparent; cursor: pointer;
+    font: 600 12px var(--font); color: var(--secondary);
+    padding: 7px 14px; border-radius: 9px; transition: background .25s var(--ease), color .25s var(--ease);
+  }
+  .seg:hover { color: var(--text); }
+  .seg.active { background: var(--glass-fill-2); color: var(--tint); box-shadow: inset 0 1px 0 var(--glass-hi), 0 1px 4px rgba(0,0,0,.15); }
+
+  .field { position: relative; display: inline-flex; }
+  .field select {
+    appearance: none; -webkit-appearance: none;
+    padding: 10px 30px 10px 14px;
+    background: var(--input-fill); color: var(--text);
+    border: 1px solid var(--glass-border); border-radius: var(--r-sm);
+    font: 600 12px var(--font); outline: none; cursor: pointer;
+    -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  }
+  .field::after {
+    content: ''; position: absolute; right: 13px; top: 50%;
+    width: 7px; height: 7px; border-right: 1.5px solid var(--tertiary); border-bottom: 1.5px solid var(--tertiary);
+    transform: translateY(-70%) rotate(45deg); pointer-events: none;
+  }
+  .field select:focus { border-color: var(--tint); }
+
+  /* ── Transactions ──────────────────────────────── */
+  .txn-wrap { overflow-x: auto; margin: 0 -6px; padding: 0 6px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; padding: 6px 8px; border-bottom: 1px solid var(--border); }
-  td { padding: 9px 8px; border-bottom: 1px solid rgba(148,163,184,0.07); vertical-align: top; }
-  tr:hover td { background: rgba(99,102,241,0.06); }
-  .desc { font-weight: 600; }
+  thead th {
+    text-align: left; color: var(--tertiary); font-weight: 500;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 8px; border-bottom: 1px solid var(--sep);
+  }
+  tbody td { padding: 10px 8px; border-bottom: 1px solid var(--sep); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr { transition: background .18s var(--ease); }
+  tbody tr:hover td { background: var(--input-fill); }
+  td .desc { font-weight: 600; letter-spacing: -0.01em; }
+  td.date { color: var(--tertiary); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .accs { display: flex; gap: 4px; flex-wrap: wrap; }
-  .chip { font-size: 11px; color: var(--muted); background: rgba(148,163,184,0.12); border-radius: 6px; padding: 2px 7px; }
-  .amt { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .chip {
+    font-size: 11px; font-weight: 500; color: var(--secondary);
+    background: var(--input-fill); border: 1px solid var(--glass-border);
+    border-radius: 7px; padding: 2px 7px; white-space: nowrap;
+  }
+  td.amt { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
   .amt.pos { color: var(--green); }
   .amt.neg { color: var(--red); }
-  .amt.transfer { color: var(--muted); }
-  .empty { color: var(--muted); text-align: center; padding: 28px; font-size: 13px; }
+  .amt.transfer { color: var(--tertiary); }
+  .empty { color: var(--tertiary); text-align: center; padding: 32px; font-size: 13px; }
 
-  .muted { color: var(--muted); }
-  .fade-in { animation: fade .45s ease; }
-  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-
-  @media (max-width: 640px) {
-    .wrap { padding: 20px 14px 48px; }
-    .stat .value { font-size: 22px; }
+  /* ── Tab bar ───────────────────────────────────── */
+  .tabbar {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: max(18px, env(safe-area-inset-bottom));
+    z-index: 50;
+    display: flex; gap: 2px; padding: 6px;
+    background: var(--tabbar-fill);
+    -webkit-backdrop-filter: var(--tabbar-blur);
+    backdrop-filter: var(--tabbar-blur);
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow-lg);
+    border-radius: 999px;
   }
+  @media (max-width: 640px) {
+    .tabbar {
+      width: 100%; left: 0; right: 0; transform: none; bottom: 0;
+      justify-content: space-around;
+      border-radius: 0;
+      border-left: none; border-right: none; border-bottom: none;
+      padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    }
+  }
+  .tab {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 7px 26px; border: none; background: transparent; cursor: pointer;
+    color: var(--tertiary); border-radius: 999px;
+    transition: color .25s var(--ease), transform .2s var(--ease);
+  }
+  @media (max-width: 640px) { .tab { flex: 1; padding: 7px 0; } }
+  .tab svg { width: 22px; height: 22px; }
+  .tab span { font-size: 10px; font-weight: 600; letter-spacing: 0.01em; }
+  .tab:hover { color: var(--secondary); }
+  .tab:active { transform: scale(0.94); }
+  .tab.active { color: var(--tint); }
+
+  /* ── View transitions ──────────────────────────── */
+  .view { animation: viewIn .35s var(--ease); }
+  @keyframes viewIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .stagger { animation: viewIn .5s var(--ease) both; }
+  .stagger:nth-child(2) { animation-delay: .05s; }
+  .stagger:nth-child(3) { animation-delay: .1s; }
+  .stagger:nth-child(4) { animation-delay: .15s; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+
+  /* ── Action buttons ────────────────────────────── */
+  .actions-bar { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--glass-border); border-radius: 999px;
+    padding: 11px 20px; font: 600 13px var(--font); cursor: pointer;
+    color: var(--text); background: var(--glass-fill);
+    -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+    box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow-md);
+    transition: transform .2s var(--ease), opacity .2s var(--ease);
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn.primary {
+    background: linear-gradient(135deg, var(--tint), var(--purple));
+    color: #fff; border-color: transparent;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 10px 26px -12px var(--tint);
+  }
+  .btn.ghost { background: var(--input-fill); }
+  .btn.danger { color: var(--red); }
+  .btn svg { width: 16px; height: 16px; }
+  .btn.full { width: 100%; justify-content: center; }
+  .btn:disabled { opacity: .5; cursor: default; transform: none; }
+
+  /* ── Wizard (import / reconcile) ───────────────── */
+  .wiz { display: flex; flex-direction: column; gap: 14px; }
+  .wiz .hint { font-size: 13px; color: var(--secondary); line-height: 1.5; }
+  .wiz .muted { font-size: 12px; color: var(--tertiary); margin-top: 4px; }
+  .pick {
+    border: 2px dashed var(--glass-border); border-radius: var(--r-lg);
+    padding: 34px 20px; text-align: center; cursor: pointer;
+    background: var(--input-fill); transition: border-color .2s var(--ease);
+    font: 600 14px var(--font); color: var(--tint); -webkit-tap-highlight-color: transparent;
+  }
+  .pick:active { border-color: var(--tint); }
+  .pick svg { width: 30px; height: 30px; margin: 0 auto 10px; display: block; }
+  .pick .sub { display: block; font-size: 12px; font-weight: 500; color: var(--tertiary); margin-top: 6px; }
+  .field-row { display: flex; flex-direction: column; gap: 6px; }
+  .field-row label { font-size: 12px; font-weight: 600; color: var(--tertiary); }
+  .input {
+    width: 100%; padding: 12px 14px;
+    background: var(--input-fill); color: var(--text);
+    border: 1px solid var(--glass-border); border-radius: var(--r-sm);
+    font: 500 15px var(--font); outline: none;
+    -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  }
+  .input:focus { border-color: var(--tint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tint) 25%, transparent); }
+  .kv { display: flex; justify-content: space-between; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--sep); font-size: 13px; }
+  .kv:last-child { border-bottom: none; }
+  .kv .k { color: var(--tertiary); font-weight: 500; flex: none; }
+  .kv .v { font-weight: 600; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+  .progress { height: 6px; border-radius: 999px; background: var(--input-fill); overflow: hidden; }
+  .progress i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--tint), var(--purple)); transition: width .4s var(--ease); }
+  .tx-card { display: flex; flex-direction: column; gap: 8px; }
+  .tx-count { font-size: 12px; font-weight: 700; color: var(--tint); letter-spacing: .03em; text-transform: uppercase; }
+  .tx-desc { font-family: var(--font-display); font-size: 20px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; overflow-wrap: anywhere; }
+  .tx-meta { font-size: 13px; color: var(--secondary); font-variant-numeric: tabular-nums; }
+  .tx-meta .income { color: var(--green); font-weight: 600; }
+  .tx-meta .expense { color: var(--red); font-weight: 600; }
+  .sugg {
+    font-size: 13px; padding: 10px 12px; border-radius: var(--r-sm);
+    background: var(--tone-info); border: 1px solid rgba(10,132,255,.25); color: var(--text);
+  }
+  .sugg .conf { color: var(--tertiary); font-size: 12px; }
+  .wiz-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+  .acc-list { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; }
+  .acc-item {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    width: 100%; text-align: left; padding: 12px 14px;
+    background: var(--input-fill); border: 1px solid var(--glass-border); border-radius: var(--r-sm);
+    color: var(--text); font: 600 13px var(--font); cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: background .18s var(--ease);
+  }
+  .acc-item:hover { background: var(--glass-fill-2); }
+  .acc-item:active { transform: scale(0.99); }
+  .acc-item.sugg { border-color: var(--tint); box-shadow: 0 0 0 2px color-mix(in srgb, var(--tint) 30%, transparent); }
+  .acc-item .tag { font-size: 11px; font-weight: 700; color: var(--tint); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+  .toast {
+    padding: 14px 16px; border-radius: var(--r-lg); font-size: 14px; line-height: 1.5;
+    border: 1px solid var(--glass-border); color: var(--text);
+  }
+  .toast.ok { background: var(--tone-good); border-color: rgba(48,209,88,.3); }
+  .toast.err { background: var(--tone-bad); border-color: rgba(255,69,58,.3); }
+  .sum-total { font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div class="brand">
-      <div class="logo">$</div>
-      <div>
-        <h1>Finance</h1>
-        <div class="sub" id="asof"></div>
-      </div>
-    </div>
-    <div class="asof" id="networth-tag"></div>
+<div class="backdrop" aria-hidden="true"></div>
+
+<main>
+  <header class="nav">
+    <h1 class="nav-title" id="greeting"></h1>
+    <p class="nav-sub" id="asof"></p>
   </header>
 
-  <section class="stats fade-in">
-    <div class="stat net"><div class="label">Net worth</div><div class="value" id="net-worth">—</div><div class="hint" id="net-worth-hint"></div></div>
-    <div class="stat"><div class="label">Assets</div><div class="value" id="assets">—</div></div>
-    <div class="stat"><div class="label">Liabilities</div><div class="value" id="liabilities">—</div></div>
-    <div class="stat"><div class="label">This month</div><div class="value" id="month-net">—</div><div class="hint" id="month-hint"></div></div>
+  <div class="actions-bar">
+    <button class="btn primary" id="btn-import">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>
+      Import statement
+    </button>
+    <button class="btn ghost" id="btn-reconcile">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7 7 9l-2-2m14-2-4 4m-2 8 2 2 4-4m-9 3a5 5 0 0 0 5-5"/></svg>
+      Reconcile
+    </button>
+  </div>
+
+  <!-- Overview -->
+  <section class="view" id="view-overview">
+    <div class="stats">
+      <div class="stat glass press stagger"><div class="label">Net worth</div><div class="value" id="net-worth">—</div><div class="hint" id="net-worth-hint"></div></div>
+      <div class="stat glass press stagger"><div class="label">Assets</div><div class="value" id="assets">—</div></div>
+      <div class="stat glass press stagger"><div class="label">Liabilities</div><div class="value" id="liabilities">—</div></div>
+      <div class="stat glass press stagger"><div class="label">This month</div><div class="value" id="month-net">—</div><div class="hint" id="month-hint"></div></div>
+    </div>
+
+    <div class="section-label"><span>Budgets</span><span class="sub" id="budget-month"></span></div>
+    <div class="card glass" style="margin-bottom:16px">
+      <div class="budget-grid" id="budget-grid"></div>
+    </div>
+
+    <div class="grid">
+      <div class="card glass"><div class="card-title">Cash flow</div><div class="chart-box"><canvas id="flowChart"></canvas></div></div>
+      <div class="card glass"><div class="card-title">Spending by category</div><div class="chart-box"><canvas id="catChart"></canvas></div></div>
+    </div>
+
+    <div class="split">
+      <div class="card glass">
+        <div class="card-title">Accounts</div>
+        <div class="acct-group" id="assets-group"><div class="group-head">Assets</div></div>
+        <div class="acct-group" id="liab-group"><div class="group-head">Liabilities</div></div>
+      </div>
+      <div class="card glass">
+        <div class="card-title">Income sources <span class="card-title-sub" id="income-month"></span></div>
+        <div id="income-cats"></div>
+      </div>
+    </div>
   </section>
 
-  <section class="insights fade-in" id="insights-section" hidden>
-    <div class="insights-head">
-      <span class="insights-title">Monthly insights</span>
-      <span class="insights-month muted" id="insights-month"></span>
-      <span class="insights-summary muted" id="insights-summary"></span>
+  <!-- Insights -->
+  <section class="view" id="view-insights" hidden>
+    <div class="section-label">
+      <span>Monthly insights</span>
+      <span class="sub" id="insights-month"></span>
     </div>
     <div class="insights-grid" id="insights-grid"></div>
+    <div class="section-label" style="margin-top:26px"><span>Summary</span></div>
+    <div class="card glass"><div id="insights-summary" style="font-size:15px;font-weight:600;letter-spacing:-0.01em"></div></div>
   </section>
 
-  <section class="grid fade-in">
-    <div class="card"><h3>Monthly cash flow</h3><div class="chart-box"><canvas id="flowChart"></canvas></div></div>
-    <div class="card"><h3>Spending by category</h3><div class="chart-box"><canvas id="catChart"></canvas></div></div>
+  <!-- Activity -->
+  <section class="view" id="view-activity" hidden>
+    <div class="section-label"><span>Transactions</span></div>
+    <div class="card glass">
+      <div class="tools">
+        <div class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="search" type="text" placeholder="Search" autocomplete="off">
+        </div>
+        <div class="segmented" id="typeFilter">
+          <button class="seg active" data-type="all">All</button>
+          <button class="seg" data-type="income">Income</button>
+          <button class="seg" data-type="expense">Expenses</button>
+          <button class="seg" data-type="transfer">Transfers</button>
+        </div>
+        <div class="field">
+          <select id="monthFilter"><option value="all">All months</option></select>
+        </div>
+      </div>
+      <div class="txn-wrap"><table>
+        <thead><tr><th>Date</th><th>Description</th><th class="col-accs">Accounts</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody id="txn-body"></tbody>
+      </table></div>
+      <div class="empty" id="txn-empty" hidden>No transactions match.</div>
+    </div>
   </section>
+</main>
 
-  <section class="split fade-in">
-    <div class="card">
-      <h3>Accounts</h3>
-      <div class="acct-group" id="assets-group"><div class="head">Assets</div></div>
-      <div class="acct-group" id="liab-group"><div class="head">Liabilities</div></div>
+<div class="sheet-backdrop" id="sheet" hidden>
+  <div class="sheet">
+    <div class="grabber"></div>
+    <div class="sheet-head">
+      <div>
+        <p class="sheet-title" id="sheet-title"></p>
+        <p class="sheet-sub" id="sheet-sub"></p>
+      </div>
+      <button class="sheet-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
     </div>
-    <div class="card">
-      <h3>Income sources</h3>
-      <div id="income-cats"></div>
-    </div>
-  </section>
-
-  <section class="card fade-in">
-    <h3>Transactions</h3>
-    <div class="tools">
-      <input id="search" type="text" placeholder="Search description or account…">
-      <select id="typeFilter">
-        <option value="all">All</option>
-        <option value="income">Income</option>
-        <option value="expense">Expenses</option>
-        <option value="transfer">Transfers</option>
-      </select>
-      <select id="monthFilter"><option value="all">All months</option></select>
-    </div>
-    <div style="overflow-x:auto;"><table>
-      <thead><tr><th>Date</th><th>Description</th><th>Accounts</th><th style="text-align:right">Amount</th></tr></thead>
-      <tbody id="txn-body"></tbody>
-    </table></div>
-    <div class="empty" id="txn-empty" hidden>No transactions match.</div>
-  </section>
+    <div class="sheet-list" id="sheet-list"></div>
+  </div>
 </div>
+
+<input type="file" id="import-file" accept="image/*,.pdf" hidden>
+
+<div class="sheet-backdrop" id="wizard" hidden>
+  <div class="sheet">
+    <div class="grabber"></div>
+    <div class="sheet-head">
+      <div>
+        <p class="sheet-title" id="wizard-title"></p>
+        <p class="sheet-sub" id="wizard-sub"></p>
+      </div>
+      <button class="sheet-close" id="wizard-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="sheet-list" id="wizard-body"></div>
+  </div>
+</div>
+
+<nav class="tabbar" id="tabbar">
+  <button class="tab active" data-tab="overview">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10H12V2Z"/><path d="M13 2.1A10 10 0 0 1 21.9 11H13V2.1Z" opacity=".55"/></svg>
+    <span>Overview</span>
+  </button>
+  <button class="tab" data-tab="insights">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3c.6 0 1 .5 1.1 1.1L14 7.6c.1.6.5 1 1.1 1.1l3.5.9c.6.1 1.1.5 1.1 1.1 0 .6-.5 1-1.1 1.1l-3.5.9c-.6.1-1 .5-1.1 1.1l-.9 3.5c-.1.6-.5 1.1-1.1 1.1-.6 0-1-.5-1.1-1.1l-.9-3.5c-.1-.6-.5-1-1.1-1.1l-3.5-.9C4.5 12.9 4 12.4 4 11.8c0-.6.5-1 1.1-1.1l3.5-.9c.6-.1 1-.5 1.1-1.1l.9-3.5C10.9 3.6 11.4 3 12 3Z"/><path d="M19 4.2v2.6c0 .2-.2.4-.4.4H16c-.2 0-.4-.2-.4-.4V4.2c0-.2.2-.4.4-.4h2.6c.2 0 .4.2.4.4Z" opacity=".55"/></svg>
+    <span>Insights</span>
+  </button>
+  <button class="tab" data-tab="activity">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h3v3H4V6Zm0 5h3v3H4v-3Zm0 5h3v3H4v-3Zm5-8h11v2H9V8Zm0 5h11v2H9v-2Zm0 5h11v2H9v-2Z"/></svg>
+    <span>Activity</span>
+  </button>
+</nav>
 
 <script>
 const cur = new Intl.NumberFormat('en-SG', { style: 'currency', currency: 'SGD', minimumFractionDigits: 2 });
 const state = { data: null, month: 'all', type: 'all', q: '' };
 let flowChart, catChart;
+
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
 async function load() {
   const res = await fetch('/api/data');
@@ -207,9 +646,22 @@ async function load() {
   render();
 }
 
+function greeting() {
+  const h = new Date().getHours();
+  const part = h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : h < 22 ? 'Good evening' : 'Good night';
+  return `${part}, Kailash`;
+}
+
+function fmtDate(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return iso;
+  return new Intl.DateTimeFormat('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }).format(d);
+}
+
 function render() {
   const d = state.data;
-  document.getElementById('asof').textContent = 'Journal data · as of ' + d.as_of;
+  document.getElementById('greeting').textContent = greeting();
+  document.getElementById('asof').textContent = 'Tally · as of ' + fmtDate(d.as_of);
   document.getElementById('net-worth').textContent = cur.format(d.net_worth);
   document.getElementById('assets').textContent = cur.format(d.assets);
   document.getElementById('liabilities').textContent = cur.format(d.liabilities);
@@ -220,6 +672,7 @@ function render() {
 
   renderFlow();
   renderCats();
+  renderBudgets();
   renderAccounts();
   renderIncomeCats();
   renderInsights();
@@ -227,15 +680,74 @@ function render() {
   renderTxns();
 }
 
+function renderBudgets() {
+  const b = state.data.budgets || {};
+  const rows = b.items || [];
+  document.getElementById('budget-month').textContent = b.month_label || '';
+  const grid = document.getElementById('budget-grid');
+  if (!rows.length) { grid.innerHTML = '<div class="empty">No spending this month.</div>'; return; }
+  const palette = cssVar('--palette').split(',').map(s => s.trim());
+  grid.innerHTML = rows.map((b, i) => {
+    const label = b.label || b.account.replace('expenses:', '');
+    const dot = `<span class="budget-dot" style="background:${palette[i % palette.length]}"></span>`;
+    if (b.budget == null) {
+      return `<div class="budget-row">
+        <div class="budget-top"><span class="budget-name">${dot}${esc(label)}</span><span class="budget-amt">${cur.format(b.spent)}</span></div>
+        <div class="budget-foot"><span class="budget-status">no budget set</span></div>
+      </div>`;
+    }
+    const over = b.over, warn = b.warn;
+    const fillBg = over ? 'var(--red)' : warn ? 'var(--amber)' : 'linear-gradient(90deg, var(--tint), var(--purple))';
+    const tag = over ? '<span class="budget-tag over">OVER</span>' : warn ? '<span class="budget-tag warn">WATCH</span>' : '<span class="budget-tag ok">ON TRACK</span>';
+    return `<button class="budget-row" data-acct="${b.account}">
+      <div class="budget-top"><span class="budget-name">${dot}${esc(label)}</span><span class="budget-amt">${cur.format(b.spent)} <em class="budget-of">of ${cur.format(b.budget)}</em></span></div>
+      <div class="budget-track"><div class="budget-fill" data-w="${Math.min(b.pct, 100)}" style="background:${fillBg}"></div></div>
+      <div class="budget-foot"><span class="budget-status ${over ? 'over' : ''}">${over ? `over by ${cur.format(b.spent - b.budget)}` : `${b.pct}% of budget`}</span>${tag}</div>
+    </button>`;
+  }).join('');
+  requestAnimationFrame(() => {
+    grid.querySelectorAll('.budget-fill').forEach(f => { f.style.width = '0%'; });
+    requestAnimationFrame(() => grid.querySelectorAll('.budget-fill').forEach(f => { f.style.width = f.dataset.w + '%'; }));
+  });
+}
+
+function openSheet(acct) {
+  const item = ((state.data.budgets || {}).items || []).find(i => i.account === acct);
+  if (!item) return;
+  const label = item.label;
+  const month = (state.data.budgets || {}).month || state.data.month.key;
+  const cats = item.members && item.members.length ? item.members : [acct];
+  const txns = state.data.transactions.filter(t => t.type === 'expense' && t.date.startsWith(month) && t.accounts.some(a => cats.includes(a)));
+  const spent = txns.reduce((s, t) => s + Math.abs(t.amount), 0);
+  const budgetAmt = item.budget;
+  document.getElementById('sheet-title').textContent = label;
+  let sub = `${cur.format(spent)} spent in ${month}`;
+  if (budgetAmt != null) sub += ` · budget ${cur.format(budgetAmt)}`;
+  document.getElementById('sheet-sub').textContent = sub;
+  document.getElementById('sheet-list').innerHTML = txns.length ? txns.map(t => {
+    const other = t.accounts.filter(a => !cats.includes(a));
+    return `<div class="sheet-row">
+      <div><div class="sheet-desc">${esc(t.description)}</div><div class="sheet-meta">${t.date}${other.length ? ' · ' + esc(other.join(' · ')) : ''}</div></div>
+      <div class="sheet-amt neg">−${cur.format(Math.abs(t.amount))}</div>
+    </div>`;
+  }).join('') : '<div class="empty">No transactions.</div>';
+  document.body.style.overflow = 'hidden';
+  document.getElementById('sheet').hidden = false;
+}
+
+function closeSheet() {
+  document.getElementById('sheet').hidden = true;
+  document.body.style.overflow = '';
+}
+
 function renderInsights() {
   const ins = state.data.insights;
-  const section = document.getElementById('insights-section');
-  if (!ins || !ins.cards || !ins.cards.length) { section.hidden = true; return; }
-  section.hidden = false;
+  const grid = document.getElementById('insights-grid');
+  if (!ins || !ins.cards || !ins.cards.length) { grid.innerHTML = ''; document.getElementById('insights-summary').textContent = ''; return; }
   document.getElementById('insights-month').textContent = ins.month_label;
   document.getElementById('insights-summary').textContent =
     `${cur.format(ins.spent)} spent · ~${cur.format(ins.daily_avg)}/day · ${ins.count} transactions`;
-  document.getElementById('insights-grid').innerHTML = ins.cards.map(c =>
+  grid.innerHTML = ins.cards.map(c =>
     `<div class="insight ${c.tone}"><h4><span class="dot"></span>${esc(c.title)}</h4><p>${esc(c.body)}</p></div>`).join('');
 }
 
@@ -243,65 +755,71 @@ function renderFlow() {
   const labels = state.data.monthly.map(m => m.month);
   const income = state.data.monthly.map(m => m.income);
   const expenses = state.data.monthly.map(m => m.expenses);
+  const tick = cssVar('--secondary'), grid = cssVar('--chart-grid');
   const ctx = document.getElementById('flowChart');
   if (flowChart) flowChart.destroy();
   flowChart = new Chart(ctx, {
     type: 'bar',
     data: { labels, datasets: [
-      { label: 'Income', data: income, backgroundColor: 'rgba(52,211,153,0.85)', borderRadius: 6, maxBarThickness: 34 },
-      { label: 'Expenses', data: expenses, backgroundColor: 'rgba(248,113,113,0.85)', borderRadius: 6, maxBarThickness: 34 },
+      { label: 'Income', data: income, backgroundColor: cssVar('--green'), borderRadius: 7, maxBarThickness: 30 },
+      { label: 'Expenses', data: expenses, backgroundColor: cssVar('--red'), borderRadius: 7, maxBarThickness: 30 },
     ]},
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#8ea0b8', usePointStyle: true, pointStyleWidth: 8, boxHeight: 8 } } },
+      plugins: { legend: { labels: { color: tick, usePointStyle: true, pointStyleWidth: 8, boxHeight: 8 } } },
       scales: {
-        x: { ticks: { color: '#8ea0b8' }, grid: { color: 'rgba(148,163,184,0.08)' } },
-        y: { ticks: { color: '#8ea0b8', callback: v => 'SGD ' + v }, grid: { color: 'rgba(148,163,184,0.08)' } },
+        x: { ticks: { color: tick }, grid: { color: 'transparent' }, border: { color: grid } },
+        y: { ticks: { color: tick, callback: v => 'SGD ' + v }, grid: { color: grid }, border: { display: false } },
       },
     },
   });
 }
 
-const PALETTE = ['#6366f1','#22d3ee','#34d399','#fbbf24','#f87171','#a78bfa','#2dd4bf','#f472b6','#fb923c','#94a3b8','#818cf8','#67e8f9'];
-
 function renderCats() {
   const cats = state.data.expense_categories.slice(0, 9);
   const other = state.data.expense_categories.slice(9).reduce((s, c) => s + c.amount, 0);
-  const labels = cats.map(c => c.account.replace('expenses:', ''));
+  const labelMap = {};
+  ((state.data.budgets || {}).items || []).forEach(i => { labelMap[i.account] = i.label; });
+  const labels = cats.map(c => labelMap[c.account] || c.account.replace('expenses:', ''));
+  const catKeys = cats.map(c => c.account);
   const values = cats.map(c => c.amount);
-  if (other > 0) { labels.push('Other'); values.push(Math.round(other * 100) / 100); }
+  if (other > 0) { labels.push('Other'); catKeys.push(null); values.push(Math.round(other * 100) / 100); }
+  const tick = cssVar('--secondary');
   const ctx = document.getElementById('catChart');
   if (catChart) catChart.destroy();
   catChart = new Chart(ctx, {
     type: 'doughnut',
-    data: { labels, datasets: [{ data: values, backgroundColor: PALETTE, borderColor: '#111826', borderWidth: 3 }] },
-      options: {
-        responsive: true, maintainAspectRatio: false, cutout: '62%',
-        plugins: {
-          legend: { position: 'bottom', labels: { color: '#8ea0b8', boxWidth: 10, boxHeight: 10, usePointStyle: true, padding: 10, font: { size: 11 } } },
-          tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + cur.format(c.parsed) } },
-        },
+    data: { labels, datasets: [{ data: values, backgroundColor: cssVar('--palette').split(',').map(s => s.trim()), borderColor: cssVar('--dot-border'), borderWidth: 3 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '64%',
+      onClick: (evt, els) => { if (els.length && catKeys[els[0].index]) openSheet(catKeys[els[0].index]); },
+      plugins: {
+        legend: { position: 'bottom', labels: { color: tick, boxWidth: 10, boxHeight: 10, usePointStyle: true, padding: 10, font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + cur.format(c.parsed) } },
       },
+    },
   });
 }
 
 function renderAccounts() {
   const ag = document.getElementById('assets-group');
-  ag.innerHTML = '<div class="head">Assets</div>' + state.data.accounts.assets.map(a =>
-    `<div class="acct-row"><span class="name">${a.account.replace('assets:', '')}</span><span class="val">${cur.format(a.amount)}</span></div>`).join('');
+  ag.innerHTML = '<div class="group-head">Assets</div>' + state.data.accounts.assets.map(a =>
+    `<div class="row"><span class="name">${a.account.replace('assets:', '')}</span><span class="val">${cur.format(a.amount)}</span></div>`).join('');
   const lg = document.getElementById('liab-group');
-  lg.innerHTML = '<div class="head">Liabilities</div>' + (state.data.accounts.liabilities.length
+  lg.innerHTML = '<div class="group-head">Liabilities</div>' + (state.data.accounts.liabilities.length
     ? state.data.accounts.liabilities.map(a =>
-      `<div class="acct-row liab"><span class="name">${a.account.replace('liabilities:', '')}</span><span class="val">${cur.format(a.amount)}</span></div>`).join('')
-    : '<div class="muted" style="padding:8px 0">None</div>');
+      `<div class="row liab"><span class="name">${a.account.replace('liabilities:', '')}</span><span class="val">${cur.format(a.amount)}</span></div>`).join('')
+    : '<div class="row"><span class="name muted">None</span></div>');
 }
 
 function renderIncomeCats() {
+  document.getElementById('income-month').textContent =
+    ((state.data.budgets || {}).month_label || '');
   const el = document.getElementById('income-cats');
   const inc = state.data.income_categories;
   el.innerHTML = inc.length ? inc.map(c =>
-    `<div class="acct-row"><span class="name">${c.account.replace('income:', '')}</span><span class="val">${cur.format(c.amount)}</span></div>`).join('')
-    : '<div class="muted" style="padding:8px 0">None yet</div>';
+    `<div class="row"><span class="name">${c.account.replace('income:', '')}</span><span class="val">${cur.format(c.amount)}</span></div>`).join('')
+    : '<div class="row"><span class="name muted">None yet</span></div>';
 }
 
 function renderMonths() {
@@ -328,9 +846,9 @@ function renderTxns() {
     const cls = t.amount > 0 ? 'pos' : (t.amount < 0 ? 'neg' : 'transfer');
     const sign = t.type === 'expense' ? '−' : (t.amount >= 0 ? '+' : '−');
     return `<tr>
-      <td class="muted">${t.date}</td>
+      <td class="date">${t.date}</td>
       <td class="desc">${esc(t.description)}</td>
-      <td><div class="accs">${t.accounts.map(a => `<span class="chip">${esc(a)}</span>`).join('')}</div></td>
+      <td class="col-accs"><div class="accs">${t.accounts.map(a => `<span class="chip">${esc(a)}</span>`).join('')}</div></td>
       <td class="amt ${cls}">${sign}${cur.format(Math.abs(t.amount))}</td>
     </tr>`;
   }).join('');
@@ -339,8 +857,362 @@ function renderTxns() {
 function esc(s) { return s.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
 
 document.getElementById('search').addEventListener('input', e => { state.q = e.target.value; renderTxns(); });
-document.getElementById('typeFilter').addEventListener('change', e => { state.type = e.target.value; renderTxns(); });
+document.querySelectorAll('#typeFilter .seg').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#typeFilter .seg').forEach(x => x.classList.toggle('active', x === b));
+  state.type = b.dataset.type; renderTxns();
+}));
 document.getElementById('monthFilter').addEventListener('change', e => { state.month = e.target.value; renderTxns(); });
+document.getElementById('budget-grid').addEventListener('click', e => {
+  const row = e.target.closest('.budget-row');
+  if (row) openSheet(row.dataset.acct);
+});
+document.getElementById('sheet').addEventListener('click', e => {
+  if (e.target === document.getElementById('sheet') || e.target.closest('.sheet-close')) closeSheet();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSheet(); closeWizard(); } });
+
+document.querySelectorAll('#tabbar .tab').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('#tabbar .tab').forEach(x => x.classList.toggle('active', x === t));
+  ['overview', 'insights', 'activity'].forEach(v => {
+    document.getElementById('view-' + v).hidden = v !== t.dataset.tab;
+  });
+}));
+
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { renderFlow(); renderCats(); });
+
+// ── Import & Reconcile wizard ─────────────────────
+const wiz = { mode: null, wizard_id: null, cardName: '', idx: 0, total: 0, current: null, accounts: [] };
+const $ = id => document.getElementById(id);
+
+function openWizard(title, sub) {
+  $('wizard-title').textContent = title;
+  $('wizard-sub').textContent = sub || '';
+  document.body.style.overflow = 'hidden';
+  $('wizard').hidden = false;
+}
+
+function closeWizard() {
+  $('wizard').hidden = true;
+  document.body.style.overflow = '';
+  wiz.mode = null; wiz.wizard_id = null; wiz.current = null;
+}
+
+async function api(url, opts) {
+  const res = await fetch(url, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Request failed');
+  return data;
+}
+
+function renderToast(type, message) {
+  const body = $('wizard-body');
+  body.innerHTML = `<div class="wiz"><div class="toast ${type === 'err' ? 'err' : 'ok'}">${esc(message)}</div>
+    <button class="btn ghost full" data-close="1">Close</button></div>`;
+}
+
+// --- Import ---
+$('btn-import').addEventListener('click', () => {
+  wiz.mode = 'import';
+  openWizard('Import statement', 'Add transactions from a screenshot or PDF');
+  renderPick();
+});
+
+function renderPick() {
+  const body = $('wizard-body');
+  body.innerHTML = `
+    <div class="wiz">
+      <button class="pick" id="pick-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>
+        Choose a screenshot or PDF
+        <span class="sub">Tap to browse your Photos or Files</span>
+      </button>
+      <p class="hint">Tally reads the image with AI, finds transactions since your last import, and lets you review each one before saving to your journal.</p>
+    </div>`;
+  $('pick-btn').addEventListener('click', () => $('import-file').click());
+  $('import-file').onchange = () => {
+    const f = $('import-file').files[0];
+    if (!f) return;
+    uploadFile(f);
+    $('import-file').value = '';
+  };
+}
+
+async function uploadFile(file) {
+  $('wizard-body').innerHTML = `<div class="wiz"><div class="progress"><i style="width:100%"></i></div><p class="hint">Parsing “${esc(file.name)}” with AI…</p></div>`;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const d = await api('/api/import', { method: 'POST', body: fd });
+    if (d.step === 'card') renderCardConfirm(d);
+    else if (d.step === 'none') renderToast('ok', d.message);
+    else if (d.step === 'error') renderToast('err', d.message);
+    else throw new Error('Unexpected response');
+  } catch (e) { renderToast('err', e.message); }
+}
+
+function renderCardConfirm(d) {
+  wiz.wizard_id = d.wizard_id;
+  $('wizard-sub').textContent = `${d.count} new transactions (${d.start_date} → ${d.end_date})`;
+  const body = $('wizard-body');
+  body.innerHTML = `
+    <div class="wiz">
+      <div class="kv"><span class="k">Card</span><span class="v">${esc(d.card_name)}</span></div>
+      <div class="kv"><span class="k">Account</span><span class="v">${esc(d.offset_account)}</span></div>
+      <div class="field-row"><label for="wiz-card-name">Card name (editable)</label>
+        <input class="input" id="wiz-card-name" value="${esc(d.card_name)}"></div>
+      <button class="btn primary full" id="wiz-card-ok">Looks good — categorise</button>
+      <button class="btn ghost full" data-close="1">Cancel</button>
+    </div>`;
+  $('wiz-card-ok').addEventListener('click', async () => {
+    const cardName = $('wiz-card-name').value.trim();
+    $('wiz-card-ok').disabled = true;
+    $('wiz-card-ok').textContent = 'Categorising…';
+    try {
+      const r = await api('/api/import/start', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wizard_id: wiz.wizard_id, card_name: cardName }),
+      });
+      handleReview(r);
+    } catch (e) { renderToast('err', e.message); }
+  });
+}
+
+function handleReview(r) {
+  if (r.step === 'error') { renderToast('err', r.message); return; }
+  if (r.step === 'finish') { renderFinish(r.summary); return; }
+  wiz.cardName = r.card_name || wiz.cardName;
+  wiz.idx = r.current_idx; wiz.total = r.total; wiz.current = r.tx;
+  renderTxView();
+}
+
+function renderTxView() {
+  const t = wiz.current;
+  const direction = t.type === 'income' ? 'income' : 'expense';
+  const amt = cur.format(t.amount) + (t.original_amount ? ` · from ${cur.format(t.original_amount)}` : '');
+  const sugg = t.ai_suggestion
+    ? `<div class="sugg">Best guess: <strong>${esc(t.ai_suggestion)}</strong> <span class="conf">(${Math.round(t.ai_confidence * 100)}% confident)</span></div>`
+    : '<div class="sugg">No AI suggestion — choose a category.</div>';
+  const pct = Math.round((wiz.idx / wiz.total) * 100);
+  $('wizard-sub').textContent = `Card · ${esc(wiz.cardName || '')}`;
+  $('wizard-body').innerHTML = `
+    <div class="wiz">
+      <div class="progress"><i style="width:${pct}%"></i></div>
+      <div class="tx-card">
+        <div class="tx-count">${wiz.idx + 1} of ${wiz.total}</div>
+        <div class="tx-desc">${esc(t.description)}</div>
+        <div class="tx-meta"><span class="${direction}">${direction === 'income' ? '↑ income' : '↓ expense'}</span> ${amt} &nbsp;|&nbsp; ${t.date}</div>
+        ${sugg}
+      </div>
+      <div class="wiz-actions">
+        <button class="btn primary full" data-act="confirm">Confirm</button>
+        <button class="btn ghost full" data-act="category">Category</button>
+        <button class="btn ghost full" data-act="name">Rename</button>
+        <button class="btn ghost full" data-act="split">Split</button>
+        <button class="btn danger full" data-act="skip">Skip</button>
+      </div>
+    </div>`;
+  bodyQuery('.wiz-actions .btn', el => el.addEventListener('click', () => {
+    const act = el.dataset.act;
+    if (act === 'confirm' || act === 'skip') doTxAction(act, {});
+    else if (act === 'category') renderAccountPicker();
+    else if (act === 'name') renderNameInput();
+    else if (act === 'split') renderSplitInput();
+  }));
+}
+
+function bodyQuery(sel, fn) { document.querySelectorAll('#wizard-body ' + sel).forEach(fn); }
+
+async function doTxAction(action, payload) {
+  try {
+    const r = await api('/api/import/tx', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wizard_id: wiz.wizard_id, action, ...payload }),
+    });
+    handleReview(r);
+  } catch (e) { renderToast('err', e.message); }
+}
+
+function renderNameInput() {
+  const body = $('wizard-body');
+  body.innerHTML = `
+    <div class="wiz">
+      <div class="tx-count">${wiz.idx + 1} of ${wiz.total}</div>
+      <div class="field-row"><label>New name</label>
+        <input class="input" id="wiz-name" value="${esc(wiz.current.description)}"></div>
+      <button class="btn primary full" id="wiz-name-ok">Save name</button>
+      <button class="btn ghost full" id="wiz-name-back">« Back</button>
+    </div>`;
+  $('wiz-name-ok').addEventListener('click', () => doTxAction('name', { description: $('wiz-name').value.trim() }));
+  $('wiz-name-back').addEventListener('click', renderTxView);
+}
+
+function renderSplitInput() {
+  const orig = wiz.current.original_amount || wiz.current.amount;
+  const body = $('wizard-body');
+  body.innerHTML = `
+    <div class="wiz">
+      <div class="tx-count">${wiz.idx + 1} of ${wiz.total}</div>
+      <div class="tx-desc">${esc(wiz.current.description)}</div>
+      <p class="hint">Total was ${cur.format(orig)}. How much is your share? Enter an amount or a percentage (e.g. 50%).</p>
+      <div class="field-row"><label>Your share</label>
+        <input class="input" id="wiz-split" placeholder="15.50 or 50%"></div>
+      <button class="btn primary full" id="wiz-split-ok">Save share</button>
+      <button class="btn ghost full" id="wiz-split-back">« Back</button>
+    </div>`;
+  $('wiz-split-ok').addEventListener('click', () => doTxAction('split', { value: $('wiz-split').value.trim() }));
+  $('wiz-split-back').addEventListener('click', renderTxView);
+}
+
+async function renderAccountPicker() {
+  $('wizard-body').innerHTML = '<div class="wiz"><div class="progress"><i style="width:100%"></i></div><p class="hint">Loading categories…</p></div>';
+  try {
+    if (!wiz.accounts.length) wiz.accounts = (await api('/api/accounts')).accounts;
+  } catch (e) { renderToast('err', e.message); return; }
+  const sugg = wiz.current.ai_suggestion;
+  const rows = wiz.accounts.map(a =>
+    `<button class="acc-item ${a === sugg ? 'sugg' : ''}" data-acc="${esc(a)}"><span>${esc(a)}</span>${a === sugg ? '<span class="tag">SUGGESTED</span>' : ''}</button>`).join('');
+  const body = $('wizard-body');
+  body.innerHTML = `
+    <div class="wiz">
+      <div class="tx-count">${wiz.idx + 1} of ${wiz.total}</div>
+      <div class="tx-desc">${esc(wiz.current.description)}</div>
+      <p class="hint">Pick a category for this transaction, or type a custom account.</p>
+      <div class="field-row"><label>Custom account</label>
+        <input class="input" id="wiz-custom-acc" placeholder="expenses:food" value="${sugg ? esc(sugg) : ''}"></div>
+      <button class="btn primary full" id="wiz-custom-ok">Use custom account</button>
+      <div class="acc-list">${rows}</div>
+      <button class="btn ghost full" id="wiz-acc-back">« Back</button>
+    </div>`;
+  bodyQuery('.acc-item', b => b.addEventListener('click', () => doTxAction('category', { account: b.dataset.acc })));
+  $('wiz-custom-ok').addEventListener('click', () => doTxAction('category', { account: $('wiz-custom-acc').value.trim() }));
+  $('wiz-acc-back').addEventListener('click', renderTxView);
+}
+
+function renderFinish(s) {
+  const lines = [];
+  if (s.auto_count) lines.push(`✅ ${s.auto_count} auto-categorised`);
+  if (s.confirmed_count) lines.push(`✅ ${s.confirmed_count} confirmed by you`);
+  if (s.todo_count) lines.push(`⏭ ${s.todo_count} skipped (not recorded)`);
+  if (s.dup_count) lines.push(`⚠️ ${s.dup_count} duplicates skipped`);
+  const totals = Object.entries(s.account_totals || {}).map(([a, v]) =>
+    `<div class="kv"><span class="k">${esc(a)}</span><span class="v">${cur.format(v)}</span></div>`).join('');
+  const commit = s.commit
+    ? `<div class="toast ok"><strong>${s.success ? 'Committed & pushed ✓' : 'Commit local only'}</strong><div class="muted">${esc(s.commit)}</div>${s.error && !s.success ? `<div class="muted">${esc(s.error)}</div>` : ''}</div>`
+    : '';
+  $('wizard-sub').textContent = '';
+  $('wizard-body').innerHTML = `
+    <div class="wiz">
+      <div class="sum-total">Done!</div>
+      <div class="toast ok">${lines.join('<br>') || 'Nothing was changed.'}</div>
+      ${totals ? `<div>${totals}</div>` : ''}
+      ${commit}
+      <button class="btn primary full" data-close="1">Close</button>
+    </div>`;
+  load().catch(() => {});
+}
+
+// --- Reconcile ---
+$('btn-reconcile').addEventListener('click', async () => {
+  wiz.mode = 'reconcile';
+  openWizard('Reconcile', 'Check account balances against your statements');
+  renderReconcileList();
+});
+
+async function renderReconcileList() {
+  $('wizard-body').innerHTML = '<div class="wiz"><div class="progress"><i style="width:100%"></i></div><p class="hint">Loading balances…</p></div>';
+  let d;
+  try { d = await api('/api/reconcile'); } catch (e) { renderToast('err', e.message); return; }
+  const rows = d.accounts.map(a => {
+    const marker = a.reconciled ? (a.matches ? '✓' : '🔄') : '';
+    return `<button class="acc-item" data-acc="${esc(a.account)}">
+      <span>${esc(a.account)}</span>
+      <span class="tag">${cur.format(a.total)} ${marker}</span>
+    </button>`;
+  }).join('') || '<div class="empty">No balance-sheet accounts found.</div>';
+  $('wizard-body').innerHTML = `
+    <div class="wiz">
+      <p class="hint">Pick an account, then enter the balance from your statement to check for differences.</p>
+      <div class="acc-list">${rows}</div>
+      <button class="btn ghost full" data-close="1">Close</button>
+    </div>`;
+  bodyQuery('.acc-item', b => b.addEventListener('click', () => {
+    const item = d.accounts.find(a => a.account === b.dataset.acc);
+    renderBalanceInput(item);
+  }));
+}
+
+function renderBalanceInput(item) {
+  $('wizard-sub').textContent = 'Enter the balance shown on your statement';
+  const body = $('wizard-body');
+  body.innerHTML = `
+    <div class="wiz">
+      <div class="tx-desc">${esc(item.account)}</div>
+      <div class="kv"><span class="k">Computed balance</span><span class="v">${cur.format(item.total)}</span></div>
+      <div class="kv"><span class="k">Last reconciled</span><span class="v">${item.last_date || 'never'}${item.reconciled ? ' · ' + cur.format(item.last_balance) : ''}</span></div>
+      <div class="field-row"><label>Actual balance from statement</label>
+        <input class="input" id="wiz-balance" inputmode="decimal" value="${item.total}"></div>
+      <button class="btn primary full" id="wiz-balance-ok">Check</button>
+      <button class="btn ghost full" id="wiz-balance-back">« Back</button>
+    </div>`;
+  $('wiz-balance-ok').addEventListener('click', async () => {
+    const actual = parseFloat($('wiz-balance').value.replace(/,/g, ''));
+    if (isNaN(actual)) { return; }
+    try {
+      const r = await api('/api/reconcile', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account: item.account, actual }),
+      });
+      renderDiff(r);
+    } catch (e) { renderToast('err', e.message); }
+  });
+  $('wiz-balance-back').addEventListener('click', renderReconcileList);
+}
+
+function renderDiff(r) {
+  $('wizard-sub').textContent = '';
+  const matches = Math.abs(r.diff) < 0.005;
+  const body = $('wizard-body');
+  if (matches) {
+    body.innerHTML = `
+      <div class="wiz">
+        <div class="toast ok"><strong>Reconciled ✓</strong><br>Balance matches your statement at ${cur.format(r.actual)}.</div>
+        <button class="btn primary full" id="wiz-diff-ok">Record & close</button>
+        <button class="btn ghost full" data-close="1">Close</button>
+      </div>`;
+  } else {
+    body.innerHTML = `
+      <div class="wiz">
+        <div class="kv"><span class="k">Computed</span><span class="v">${cur.format(r.computed)}</span></div>
+        <div class="kv"><span class="k">Actual</span><span class="v">${cur.format(r.actual)}</span></div>
+        <div class="kv"><span class="k">Difference</span><span class="v" style="color:var(--red)">${cur.format(r.diff)}</span></div>
+        <p class="hint">Settle by adding an adjustment to equity:reconciling?</p>
+        <button class="btn primary full" id="wiz-diff-ok">Settle</button>
+        <button class="btn ghost full" data-close="1">Cancel</button>
+      </div>`;
+  }
+  $('wiz-diff-ok').addEventListener('click', async () => {
+    try {
+      const s = await api('/api/reconcile/settle', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account: r.account, actual: r.actual, diff: r.diff }),
+      });
+      $('wizard-body').innerHTML = `
+        <div class="wiz">
+          <div class="toast ${s.success ? 'ok' : 'err'}">
+            <strong>${s.settled ? 'Settled ✓' : 'Reconciled ✓'}</strong><br>
+            ${s.settled ? `Adjusted ${cur.format(s.diff)} → balance now ${cur.format(s.actual)}` : `Balance matches ${cur.format(s.actual)}`}
+            <div class="muted">${s.success ? 'Committed & pushed.' : esc(s.error)}</div>
+          </div>
+          <button class="btn primary full" data-close="1">Done</button>
+        </div>`;
+      load().catch(() => {});
+    } catch (e) { renderToast('err', e.message); }
+  });
+}
+
+$('wizard').addEventListener('click', e => {
+  if (e.target === $('wizard') || e.target.closest('.sheet-close') || e.target.closest('[data-close]')) closeWizard();
+});
 
 load().catch(err => {
   document.getElementById('net-worth').textContent = 'Error loading data';

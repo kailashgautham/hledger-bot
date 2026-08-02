@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tally · Sign in</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#000000">
+<style>
+  :root {
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    --r-xl: 28px; --r-md: 16px;
+    --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f2f2f7;
+      --blob-a: rgba(0, 122, 255, 0.16); --blob-b: rgba(175, 82, 222, 0.11); --blob-c: rgba(255, 45, 85, 0.09);
+      --glass-fill: rgba(255, 255, 255, 0.72); --glass-border: rgba(0, 0, 0, 0.08); --glass-hi: rgba(255, 255, 255, 0.95);
+      --input-fill: rgba(255, 255, 255, 0.6);
+      --text: #000; --secondary: #6c6c70;
+      --tint: #007AFF; --red: #FF3B30;
+      --shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.4);
+    }
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000;
+      --blob-a: rgba(64, 122, 255, 0.26); --blob-b: rgba(191, 90, 242, 0.18); --blob-c: rgba(255, 55, 95, 0.12);
+      --glass-fill: rgba(255, 255, 255, 0.08); --glass-border: rgba(255, 255, 255, 0.14); --glass-hi: rgba(255, 255, 255, 0.22);
+      --input-fill: rgba(255, 255, 255, 0.06);
+      --text: #fff; --secondary: #c7c7cc;
+      --tint: #0A84FF; --red: #FF453A;
+      --shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.7);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font); }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    min-height: 100vh; display: grid; place-items: center; padding: 24px;
+    color: var(--text); background:
+      radial-gradient(60rem 42rem at 85% -12%, var(--blob-a), transparent 62%),
+      radial-gradient(52rem 36rem at -12% 22%, var(--blob-b), transparent 58%),
+      radial-gradient(46rem 34rem at 55% 118%, var(--blob-c), transparent 60%),
+      var(--bg);
+  }
+  .card {
+    width: 100%; max-width: 380px; padding: 34px 30px 30px;
+    background: var(--glass-fill);
+    -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow);
+    border-radius: var(--r-xl);
+    animation: up .5s var(--ease);
+  }
+  @keyframes up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+  .sub { font-size: 14px; color: var(--secondary); margin-top: 4px; margin-bottom: 24px; }
+  label { display: block; font-size: 12px; font-weight: 600; color: var(--secondary); margin: 16px 0 6px; }
+  input {
+    width: 100%; height: 46px; padding: 0 14px;
+    font-size: 15px; color: var(--text);
+    background: var(--input-fill); border: 1px solid var(--glass-border); border-radius: var(--r-md);
+    outline: none; transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  input:focus { border-color: var(--tint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tint) 25%, transparent); }
+  button {
+    width: 100%; height: 46px; margin-top: 24px;
+    border: none; border-radius: var(--r-md); cursor: pointer;
+    background: var(--tint); color: #fff;
+    font-size: 15px; font-weight: 600; letter-spacing: 0.01em;
+    transition: transform .15s var(--ease), opacity .2s;
+  }
+  button:active { transform: scale(0.98); }
+  button:disabled { opacity: .6; cursor: default; }
+  .err { color: var(--red); font-size: 13px; font-weight: 500; margin-top: 14px; display: none; }
+  .err.show { display: block; }
+</style>
+</head>
+<body>
+  <form class="card" id="form" novalidate>
+    <h1>Tally</h1>
+    <p class="sub">Sign in to your dashboard</p>
+    <label for="user">Username</label>
+    <input id="user" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    <label for="pass">Password</label>
+    <input id="pass" type="password" autocomplete="current-password" required>
+    <p class="err" id="err">Incorrect username or password.</p>
+    <button id="btn" type="submit">Sign in</button>
+  </form>
+<script>
+const form = document.getElementById('form');
+const btn = document.getElementById('btn');
+const err = document.getElementById('err');
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  err.classList.remove('show');
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  try {
+    const res = await fetch('/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user: document.getElementById('user').value, pass: document.getElementById('pass').value }),
+    });
+    if (res.ok) { window.location.href = '/'; return; }
+    err.classList.add('show');
+  } catch (_) { err.classList.add('show'); }
+  btn.disabled = false;
+  btn.textContent = 'Sign in';
+});
+</script>
+</body>
+</html>
