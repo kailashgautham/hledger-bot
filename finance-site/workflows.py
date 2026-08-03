@@ -105,10 +105,19 @@ def parse_statement(filename: str, data: bytes) -> dict:
     _normalize_dates(transactions)
 
     last_date = state_mgr.get_last_date(card_name)
-    new_txns = [t for t in transactions if not last_date or t["date"] > last_date]
+    new_txns = [
+        t for t in transactions
+        if not writer.transaction_exists(
+            t["date"], t.get("original_description") or t["description"], t["amount"]
+        )
+    ]
 
     if not new_txns:
-        return {"step": "none", "message": f"Nothing new since {last_date} for {card_name}."}
+        return {
+            "step": "none",
+            "message": f"Everything in this statement was already imported "
+                       f"(last seen {last_date or 'never'} for {card_name}).",
+        }
 
     dates = [t["date"] for t in new_txns]
     start_date, end_date = min(dates), max(dates)
@@ -167,17 +176,27 @@ def _review_view(wizard: dict) -> dict:
     }
 
 
-def start_categorisation(wizard_id: str, card_name: str | None = None) -> dict:
+def start_categorisation(
+    wizard_id: str,
+    card_name: str | None = None,
+    offset_account: str | None = None,
+) -> dict:
     with _lock:
         wizard = _get(wizard_id)
-        if card_name and card_name.strip() and card_name.strip() != wizard["card_name"]:
-            wizard["card_name"] = card_name.strip()
+        configured_names = [c["name"] for c in config.get("cards", [])]
+        new_name = (card_name or "").strip()
+        if new_name and new_name != wizard["card_name"]:
+            wizard["card_name"] = state_mgr.canonical_card_name(new_name, configured_names)
             slug = re.sub(r"[^a-z0-9]+", "-", wizard["card_name"].lower()).strip("-")
             bank_slug = slug.split("-")[0]
             if wizard["offset_account"].startswith("assets:bank:"):
                 wizard["offset_account"] = f"assets:bank:{bank_slug}"
             elif wizard["offset_account"].startswith("liabilities:creditcard:"):
                 wizard["offset_account"] = f"liabilities:creditcard:{bank_slug}"
+
+        new_offset = (offset_account or "").strip()
+        if new_offset and new_offset != wizard["offset_account"]:
+            wizard["offset_account"] = new_offset
 
         new_txns = wizard.pop("raw_transactions")
         accounts = writer.get_accounts()
@@ -238,6 +257,42 @@ def tx_action(wizard_id: str, action: str, payload: dict) -> dict:
                 tx["original_description"] = tx["description"]
             tx["description"] = new_name
 
+        elif action == "edit":
+            changed = False
+            new_name = (payload.get("description") or "").strip()
+            if new_name:
+                if "original_description" not in tx:
+                    tx["original_description"] = tx["description"]
+                tx["description"] = new_name
+                changed = True
+            raw_date = (payload.get("date") or "").strip()
+            if raw_date:
+                if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw_date):
+                    return {"step": "error", "message": "Date must be YYYY-MM-DD."}
+                try:
+                    date.fromisoformat(raw_date)
+                except ValueError:
+                    return {"step": "error", "message": "Date must be a valid YYYY-MM-DD date."}
+                tx["date"] = raw_date
+                changed = True
+            raw_amt = payload.get("amount")
+            if raw_amt is not None and str(raw_amt).strip():
+                try:
+                    amt = round(float(raw_amt), 2)
+                    if amt <= 0:
+                        raise ValueError
+                except (TypeError, ValueError):
+                    return {"step": "error", "message": "Amount must be a positive number."}
+                tx["amount"] = amt
+                tx.pop("original_amount", None)
+                changed = True
+            raw_type = (payload.get("type") or "").strip()
+            if raw_type in ("expense", "income"):
+                tx["type"] = raw_type
+                changed = True
+            if not changed:
+                return {"step": "error", "message": "Nothing to edit."}
+
         elif action == "split":
             value = payload.get("value")
             original = tx.get("original_amount", tx["amount"])
@@ -281,7 +336,8 @@ def _finish_locked(wizard: dict) -> dict:
     if all_txns:
         start_date = wizard["start_date"]
         end_date = wizard["end_date"]
-        state_mgr.set_last_date(end_date, card_name)
+        configured_names = [c["name"] for c in config.get("cards", [])]
+        state_mgr.set_last_date(end_date, card_name, configured_names)
         jdir = journal_dir(config)
         files = [
             str(journal_path.relative_to(jdir)),

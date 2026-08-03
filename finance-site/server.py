@@ -262,7 +262,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/import/start":
             self._json_post(lambda d: workflows.start_categorisation(
-                d.get("wizard_id"), d.get("card_name")))
+                d.get("wizard_id"), d.get("card_name"), d.get("offset_account")))
             return
         if self.path == "/api/import/tx":
             self._json_post(lambda d: workflows.tx_action(

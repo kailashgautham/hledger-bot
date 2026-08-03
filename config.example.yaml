@@ -17,8 +17,10 @@ cards:
   - name: OCBC 90N
     liability_account: liabilities:creditcard:ocbc
     parser: ocbc
-  - name: UOB One
+  - name: UOB One Account
     offset_account: assets:bank:uob
+  - name: UOB One Card
+    offset_account: liabilities:creditcard:uob
 
 # Statements are always from the current year, but the vision model often
 # misreads the year. When true, every parsed transaction's year is forced to

@@ -159,7 +159,8 @@ async def _finish_session(chat_id: int, context: ContextTypes.DEFAULT_TYPE) -> N
     if all_txns:
         end_date = session["end_date"]
         start_date = session["start_date"]
-        state_mgr.set_last_date(end_date, card_name)
+        configured_names = [c["name"] for c in config.get("cards", [])]
+        state_mgr.set_last_date(end_date, card_name, configured_names)
 
         jpath = config["hledger"]["journal_path"]
         jdir = journal_dir(config)
@@ -484,12 +485,16 @@ async def _process_transactions(
 
     last_date = state_mgr.get_last_date(card_name)
     new_txns = [
-        t for t in transactions if not last_date or t["date"] > last_date
+        t for t in transactions
+        if not writer.transaction_exists(
+            t["date"], t.get("original_description") or t["description"], t["amount"]
+        )
     ]
 
     if not new_txns:
         await status_msg.edit_text(
-            f"Nothing new since {last_date} for {card_name}."
+            f"Everything in this statement was already imported "
+            f"(last seen {last_date or 'never'} for {card_name})."
         )
         return
 

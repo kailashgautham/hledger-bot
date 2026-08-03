@@ -83,9 +83,16 @@ class StateManager:
             return self._data.get("card_last_dates", {}).get(card)
         return self._data.get("last_date")
 
-    def set_last_date(self, date_str: str, card: Optional[str] = None) -> None:
+    def set_last_date(
+        self,
+        date_str: str,
+        card: Optional[str] = None,
+        canonical_names: Optional[list[str]] = None,
+    ) -> None:
         self._data["last_date"] = date_str
         if card:
+            if canonical_names:
+                card = self.canonical_card_name(card, canonical_names)
             self._data.setdefault("card_last_dates", {})[card] = date_str
         self._save()
 

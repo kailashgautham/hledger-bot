@@ -208,7 +208,7 @@ Rules:
             self.offset_account = f"liabilities:creditcard:{bank_id}"
 
         # Allow config to override offset_account
-        override = self._config_override(detected_name)
+        override = self._config_override(detected_name, account_type)
         if override:
             self.card_name = override["name"]
             self.offset_account = override.get("offset_account", self.offset_account)
@@ -233,12 +233,25 @@ Rules:
 
         return transactions
 
-    def _config_override(self, detected: str) -> dict | None:
-        """Return a matching card config entry if the user has defined one, else None."""
+    def _config_override(self, detected: str, account_type: str) -> dict | None:
+        """Return a matching card config entry if the user has defined one, else None.
+
+        Matching is done against config cards with a consistent offset kind
+        (debit -> assets:, credit -> liabilities:) first, so e.g. a "UOB"
+        credit-card statement maps to `UOB One Card` and a "UOB" bank statement
+        maps to `UOB One Account` even though both names contain "UOB".
+        """
         if not detected:
             return None
-        names = [card["name"] for card in self._cards]
-        match = match_card_name(detected, names)
+        want = "assets:" if account_type == "debit" else "liabilities:"
+        kind_names = [
+            c["name"] for c in self._cards
+            if (c.get("offset_account") or "").startswith(want)
+        ]
+        all_names = [c["name"] for c in self._cards]
+        match = match_card_name(detected, kind_names)
+        if match is None:
+            match = match_card_name(detected, all_names)
         if match is None:
             return None
         for card in self._cards:

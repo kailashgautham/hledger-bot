@@ -926,7 +926,7 @@ function renderPick() {
         Choose a screenshot or PDF
         <span class="sub">Tap to browse your Photos or Files</span>
       </button>
-      <p class="hint">Tally reads the image with AI, finds transactions since your last import, and lets you review each one before saving to your journal.</p>
+      <p class="hint">Tally reads the image with AI, checks each transaction against your journal, and lets you review the new ones before saving.</p>
     </div>`;
   $('pick-btn').addEventListener('click', () => $('import-file').click());
   $('import-file').onchange = () => {
@@ -956,21 +956,23 @@ function renderCardConfirm(d) {
   const body = $('wizard-body');
   body.innerHTML = `
     <div class="wiz">
-      <div class="kv"><span class="k">Card</span><span class="v">${esc(d.card_name)}</span></div>
-      <div class="kv"><span class="k">Account</span><span class="v">${esc(d.offset_account)}</span></div>
       <div class="field-row"><label for="wiz-card-name">Card name (editable)</label>
         <input class="input" id="wiz-card-name" value="${esc(d.card_name)}"></div>
+      <div class="field-row"><label for="wiz-card-acc">Account (editable)</label>
+        <input class="input" id="wiz-card-acc" value="${esc(d.offset_account)}"></div>
+      <p class="hint">Correct the card/account if the AI mis-read the statement, then continue.</p>
       <button class="btn primary full" id="wiz-card-ok">Looks good — categorise</button>
       <button class="btn ghost full" data-close="1">Cancel</button>
     </div>`;
   $('wiz-card-ok').addEventListener('click', async () => {
     const cardName = $('wiz-card-name').value.trim();
+    const offsetAccount = $('wiz-card-acc').value.trim();
     $('wiz-card-ok').disabled = true;
     $('wiz-card-ok').textContent = 'Categorising…';
     try {
       const r = await api('/api/import/start', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wizard_id: wiz.wizard_id, card_name: cardName }),
+        body: JSON.stringify({ wizard_id: wiz.wizard_id, card_name: cardName, offset_account: offsetAccount }),
       });
       handleReview(r);
     } catch (e) { renderToast('err', e.message); }
@@ -1006,6 +1008,7 @@ function renderTxView() {
       <div class="wiz-actions">
         <button class="btn primary full" data-act="confirm">Confirm</button>
         <button class="btn ghost full" data-act="category">Category</button>
+        <button class="btn ghost full" data-act="edit">Edit</button>
         <button class="btn ghost full" data-act="name">Rename</button>
         <button class="btn ghost full" data-act="split">Split</button>
         <button class="btn danger full" data-act="skip">Skip</button>
@@ -1015,6 +1018,7 @@ function renderTxView() {
     const act = el.dataset.act;
     if (act === 'confirm' || act === 'skip') doTxAction(act, {});
     else if (act === 'category') renderAccountPicker();
+    else if (act === 'edit') renderEditForm();
     else if (act === 'name') renderNameInput();
     else if (act === 'split') renderSplitInput();
   }));
@@ -1061,6 +1065,36 @@ function renderSplitInput() {
     </div>`;
   $('wiz-split-ok').addEventListener('click', () => doTxAction('split', { value: $('wiz-split').value.trim() }));
   $('wiz-split-back').addEventListener('click', renderTxView);
+}
+
+function renderEditForm() {
+  const t = wiz.current;
+  const body = $('wizard-body');
+  body.innerHTML = `
+    <div class="wiz">
+      <div class="tx-count">${wiz.idx + 1} of ${wiz.total}</div>
+      <div class="tx-desc">Edit transaction</div>
+      <div class="field-row"><label for="wiz-edit-desc">Description</label>
+        <input class="input" id="wiz-edit-desc" value="${esc(t.description)}"></div>
+      <div class="field-row"><label for="wiz-edit-date">Date</label>
+        <input class="input" id="wiz-edit-date" type="date" value="${esc(t.date)}"></div>
+      <div class="field-row"><label for="wiz-edit-amt">Amount</label>
+        <input class="input" id="wiz-edit-amt" type="number" step="0.01" min="0" value="${t.amount}"></div>
+      <div class="field-row"><label for="wiz-edit-type">Type</label>
+        <select class="input" id="wiz-edit-type">
+          <option value="expense"${t.type === 'income' ? '' : ' selected'}>Expense (money out)</option>
+          <option value="income"${t.type === 'income' ? ' selected' : ''}>Income (money in)</option>
+        </select></div>
+      <button class="btn primary full" id="wiz-edit-ok">Save changes</button>
+      <button class="btn ghost full" id="wiz-edit-back">« Back</button>
+    </div>`;
+  $('wiz-edit-ok').addEventListener('click', () => doTxAction('edit', {
+    description: $('wiz-edit-desc').value.trim(),
+    date: $('wiz-edit-date').value,
+    amount: $('wiz-edit-amt').value.trim(),
+    type: $('wiz-edit-type').value,
+  }));
+  $('wiz-edit-back').addEventListener('click', renderTxView);
 }
 
 async function renderAccountPicker() {
