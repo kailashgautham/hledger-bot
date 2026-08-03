@@ -956,9 +956,9 @@ function renderCardConfirm(d) {
   const body = $('wizard-body');
   body.innerHTML = `
     <div class="wiz">
-      <div class="field-row"><label for="wiz-card-name">Card name (editable)</label>
+      <div class="field-row"><label for="wiz-card-name">Card name</label>
         <input class="input" id="wiz-card-name" value="${esc(d.card_name)}"></div>
-      <div class="field-row"><label for="wiz-card-acc">Account (editable)</label>
+      <div class="field-row"><label for="wiz-card-acc">Account</label>
         <input class="input" id="wiz-card-acc" value="${esc(d.offset_account)}"></div>
       <p class="hint">Correct the card/account if the AI mis-read the statement, then continue.</p>
       <button class="btn primary full" id="wiz-card-ok">Looks good — categorise</button>
