@@ -58,12 +58,14 @@ def parse_transactions(text: str) -> list[dict]:
 
 def _type_amount(postings: list[dict]) -> tuple[str, float]:
     """Classify a transaction and return its display amount."""
-    income = sum(abs(p["amount"]) for p in postings if p["amount"] and p["account"].startswith("income:"))
-    expense = sum(abs(p["amount"]) for p in postings if p["amount"] and p["account"].startswith("expenses:"))
-    if income and not expense:
-        return "income", income
+    # Signed sums: refunds/offsets (e.g. a friend repaying part of a meal as a
+    # negative expenses:X posting) must reduce spend, not add to it.
+    income = sum(p["amount"] for p in postings if p["amount"] and p["account"].startswith("income:"))
+    expense = sum(p["amount"] for p in postings if p["amount"] and p["account"].startswith("expenses:"))
     if expense and not income:
         return "expense", -expense
+    if income and not expense:
+        return "income", -income
     largest = max((p["amount"] for p in postings if p["amount"]), default=0.0)
     return "transfer", largest
 
@@ -155,7 +157,7 @@ def compute_insights(monthly, monthly_cats, tx_view, this_month) -> dict:
                               "title": f"Overspending on {acct.replace('expenses:', '')}",
                               "body": f"{_fmt(amt)} vs your usual {_fmt(avg)} — {((amt - avg) / avg):.0%} more than normal. This is the main thing to watch."})
 
-    exps = [t for t in tx_view if t["type"] == "expense" and t["date"].startswith(target)]
+    exps = [t for t in tx_view if t["type"] == "expense" and t["amount"] < 0 and t["date"].startswith(target)]
     if exps:
         biggest = max(exps, key=lambda t: abs(t["amount"]))
         cards.append({"tone": "info",
@@ -193,7 +195,7 @@ def build_data(text: str, currency: str = "SGD") -> dict:
             {"account": p["account"], "amount": -total} for p in missing
         ]
         income = sum(abs(p["amount"]) for p in postings if p["account"].startswith("income:"))
-        expense = sum(abs(p["amount"]) for p in postings if p["account"].startswith("expenses:"))
+        expense = sum(p["amount"] for p in postings if p["account"].startswith("expenses:"))
         ttype, amt = _type_amount(postings)
         tx_view.append({
             "date": t["date"],
@@ -209,8 +211,8 @@ def build_data(text: str, currency: str = "SGD") -> dict:
             if not p["amount"]:
                 continue
             if p["account"].startswith("expenses:"):
-                expense_cats[p["account"]] += abs(p["amount"])
-                monthly_cats[month][p["account"]] += abs(p["amount"])
+                expense_cats[p["account"]] += p["amount"]
+                monthly_cats[month][p["account"]] += p["amount"]
             elif p["account"].startswith("income:"):
                 monthly_income[month][p["account"]] += abs(p["amount"])
 

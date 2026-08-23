@@ -360,6 +360,19 @@
   .amt.transfer { color: var(--tertiary); }
   .empty { color: var(--tertiary); text-align: center; padding: 32px; font-size: 13px; }
 
+  .mini-btn {
+    width: 30px; height: 30px; border-radius: 9px; flex: none;
+    border: 1px solid var(--glass-border); background: var(--input-fill);
+    color: var(--tertiary); cursor: pointer;
+    display: inline-grid; place-items: center; margin-left: 6px;
+    transition: color .18s var(--ease), background .18s var(--ease);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mini-btn:hover { color: var(--text); background: var(--glass-fill-2); }
+  .mini-btn svg { width: 14px; height: 14px; }
+  td.txn-act { white-space: nowrap; text-align: right; }
+  .sheet-err { color: var(--red); }
+
   /* ── Tab bar ───────────────────────────────────── */
   .tabbar {
     position: fixed; left: 50%; transform: translateX(-50%);
@@ -518,7 +531,7 @@
       <div class="stat glass press stagger"><div class="label">Net worth</div><div class="value" id="net-worth">—</div><div class="hint" id="net-worth-hint"></div></div>
       <div class="stat glass press stagger"><div class="label">Assets</div><div class="value" id="assets">—</div></div>
       <div class="stat glass press stagger"><div class="label">Liabilities</div><div class="value" id="liabilities">—</div></div>
-      <div class="stat glass press stagger"><div class="label">This month</div><div class="value" id="month-net">—</div><div class="hint" id="month-hint"></div></div>
+      <div class="stat glass press stagger"><div class="label">Spent this month</div><div class="value" id="month-net">—</div><div class="hint" id="month-hint"></div></div>
     </div>
 
     <div class="section-label"><span>Budgets</span><span class="sub" id="budget-month"></span></div>
@@ -575,7 +588,7 @@
         </div>
       </div>
       <div class="txn-wrap"><table>
-        <thead><tr><th>Date</th><th>Description</th><th class="col-accs">Accounts</th><th style="text-align:right">Amount</th></tr></thead>
+        <thead><tr><th>Date</th><th>Description</th><th class="col-accs">Accounts</th><th style="text-align:right">Amount</th><th></th></tr></thead>
         <tbody id="txn-body"></tbody>
       </table></div>
       <div class="empty" id="txn-empty" hidden>No transactions match.</div>
@@ -599,7 +612,7 @@
   </div>
 </div>
 
-<input type="file" id="import-file" accept="image/*,.pdf" hidden>
+<input type="file" id="import-file" accept="image/*,.pdf" multiple hidden>
 
 <div class="sheet-backdrop" id="wizard" hidden>
   <div class="sheet">
@@ -666,8 +679,8 @@ function render() {
   document.getElementById('assets').textContent = cur.format(d.assets);
   document.getElementById('liabilities').textContent = cur.format(d.liabilities);
   const mn = d.month.income - d.month.expenses;
-  document.getElementById('month-net').textContent = cur.format(mn);
-  document.getElementById('month-hint').textContent = (mn >= 0 ? 'saved ' : 'overspent ') + cur.format(Math.abs(mn)) + ' in ' + d.month.key;
+  document.getElementById('month-net').textContent = cur.format(d.month.expenses);
+  document.getElementById('month-hint').textContent = 'earned ' + cur.format(d.month.income) + ' · ' + (mn >= 0 ? 'saved ' : 'overspent ') + cur.format(Math.abs(mn));
   document.getElementById('net-worth-hint').textContent = d.assets + ' assets · ' + d.liabilities + ' liabilities';
 
   renderFlow();
@@ -718,17 +731,17 @@ function openSheet(acct) {
   const month = (state.data.budgets || {}).month || state.data.month.key;
   const cats = item.members && item.members.length ? item.members : [acct];
   const txns = state.data.transactions.filter(t => t.type === 'expense' && t.date.startsWith(month) && t.accounts.some(a => cats.includes(a)));
-  const spent = txns.reduce((s, t) => s + Math.abs(t.amount), 0);
+  const spent = txns.reduce((s, t) => s + t.amount, 0);
   const budgetAmt = item.budget;
   document.getElementById('sheet-title').textContent = label;
-  let sub = `${cur.format(spent)} spent in ${month}`;
+  let sub = `${cur.format(Math.abs(spent))} spent in ${month}`;
   if (budgetAmt != null) sub += ` · budget ${cur.format(budgetAmt)}`;
   document.getElementById('sheet-sub').textContent = sub;
   document.getElementById('sheet-list').innerHTML = txns.length ? txns.map(t => {
     const other = t.accounts.filter(a => !cats.includes(a));
     return `<div class="sheet-row">
       <div><div class="sheet-desc">${esc(t.description)}</div><div class="sheet-meta">${t.date}${other.length ? ' · ' + esc(other.join(' · ')) : ''}</div></div>
-      <div class="sheet-amt neg">−${cur.format(Math.abs(t.amount))}</div>
+      <div class="sheet-amt ${t.amount < 0 ? 'neg' : 'pos'}">${t.amount < 0 ? '−' : '+'}${cur.format(Math.abs(t.amount))}</div>
     </div>`;
   }).join('') : '<div class="empty">No transactions.</div>';
   document.body.style.overflow = 'hidden';
@@ -839,19 +852,143 @@ function renderTxns() {
     if (ql && !(t.description.toLowerCase().includes(ql) || t.accounts.some(a => a.toLowerCase().includes(ql)))) return false;
     return true;
   });
+  state.filtered = rows;
   const body = document.getElementById('txn-body');
   const empty = document.getElementById('txn-empty');
   empty.hidden = rows.length > 0;
-  body.innerHTML = rows.slice(0, 200).map(t => {
-    const cls = t.amount > 0 ? 'pos' : (t.amount < 0 ? 'neg' : 'transfer');
-    const sign = t.type === 'expense' ? '−' : (t.amount >= 0 ? '+' : '−');
+  body.innerHTML = rows.slice(0, 200).map((t, i) => {
+    const cls = t.type === 'transfer' ? 'transfer' : (t.amount > 0 ? 'pos' : (t.amount < 0 ? 'neg' : 'transfer'));
+    const sign = t.type === 'transfer' ? '' : (t.amount >= 0 ? '+' : '−');
+    const amortize = t.type === 'expense'
+      ? `<button class="mini-btn" data-i="${i}" data-act="amortize" title="Split over months"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M8 15l2.5 2.5L16 13" opacity=".6"/></svg></button>`
+      : '';
     return `<tr>
       <td class="date">${t.date}</td>
       <td class="desc">${esc(t.description)}</td>
       <td class="col-accs"><div class="accs">${t.accounts.map(a => `<span class="chip">${esc(a)}</span>`).join('')}</div></td>
       <td class="amt ${cls}">${sign}${cur.format(Math.abs(t.amount))}</td>
+      <td class="txn-act">
+        <button class="mini-btn" data-i="${i}" data-act="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+        ${amortize}
+        <button class="mini-btn" data-i="${i}" data-act="delete" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg></button>
+      </td>
     </tr>`;
   }).join('');
+}
+
+function openEditSheet(t) {
+  const acc = t.accounts.find(a => a.startsWith('expenses:') || a.startsWith('income:')) || '';
+  $('sheet-title').textContent = 'Edit transaction';
+  $('sheet-sub').textContent = t.date;
+  $('sheet-list').innerHTML = `
+    <div class="wiz">
+      <div class="field-row"><label for="ed-desc">Description</label>
+        <input class="input" id="ed-desc" value="${esc(t.description)}"></div>
+      <div class="field-row"><label for="ed-date">Date</label>
+        <input class="input" id="ed-date" type="date" value="${esc(t.date)}"></div>
+      <div class="field-row"><label for="ed-amt">Amount</label>
+        <input class="input" id="ed-amt" type="number" step="0.01" min="0" value="${Math.abs(t.amount)}"></div>
+      <div class="field-row"><label for="ed-acc">Category</label>
+        <input class="input" id="ed-acc" placeholder="expenses:food" value="${esc(acc)}"></div>
+      <p class="hint sheet-err" id="ed-err" hidden></p>
+      <button class="btn primary full" id="ed-save">Save changes</button>
+      <button class="btn ghost full" data-close="1">Cancel</button>
+    </div>`;
+  openSheetEl();
+  $('ed-save').addEventListener('click', async () => {
+    const payload = {
+      date: t.date,
+      description: t.description,
+      amount: Math.abs(t.amount),
+      new_description: $('ed-desc').value.trim(),
+      new_date: $('ed-date').value,
+      new_amount: $('ed-amt').value.trim(),
+      account: $('ed-acc').value.trim(),
+    };
+    $('ed-save').disabled = true;
+    $('ed-save').textContent = 'Saving…';
+    try {
+      const r = await api('/api/txn/edit', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!r.success) throw new Error(r.message || 'Edit failed');
+      closeSheet();
+      load().catch(() => {});
+    } catch (e) {
+      $('ed-save').disabled = false;
+      $('ed-save').textContent = 'Save changes';
+      const err = $('ed-err');
+      err.textContent = e.message;
+      err.hidden = false;
+    }
+  });
+}
+
+function openAmortizeSheet(t) {
+  const total = Math.abs(t.amount);
+  $('sheet-title').textContent = 'Split over months';
+  $('sheet-sub').textContent = t.description + ' · ' + cur.format(total);
+  $('sheet-list').innerHTML = `
+    <div class="wiz">
+      <p class="hint">Turn this one-off payment into a prepaid asset, then expense it in equal parts over the months you pick — so it stops inflating one month.</p>
+      <div class="field-row"><label for="am-months">Months to spread over</label>
+        <input class="input" id="am-months" type="number" min="2" max="60" step="any" value="10"></div>
+      <p class="hint" id="am-preview"></p>
+      <p class="hint sheet-err" id="am-err" hidden></p>
+      <button class="btn primary full" id="am-save">Amortize</button>
+      <button class="btn ghost full" data-close="1">Cancel</button>
+    </div>`;
+  const preview = () => {
+    const raw = $('am-months').value.trim();
+    const m = Number(raw);
+    const valid = Number.isFinite(m) && m >= 2 && m <= 60;
+    if (!valid) {
+      $('am-preview').textContent = raw === '' ? 'Pick at least 2 months.' : 'Months must be a number, e.g. 2.5.';
+      return;
+    }
+    const entries = Math.ceil(m);
+    const per = total / m;
+    const last = total - per * (entries - 1);
+    $('am-preview').textContent = Number.isInteger(m)
+      ? `→ ${entries} × ${cur.format(per)}/month, starting this month`
+      : `→ ${entries - 1} × ${cur.format(per)}/month + ${cur.format(last)} final, starting this month`;
+  };
+  $('am-months').addEventListener('input', preview);
+  preview();
+  openSheetEl();
+  $('am-save').addEventListener('click', async () => {
+    const raw = $('am-months').value.trim();
+    const months = Number(raw);
+    if (!(Number.isFinite(months) && months >= 2 && months <= 60)) {
+      const err = $('am-err');
+      err.textContent = 'Pick a number of months (2–60), e.g. 2.5.';
+      err.hidden = false;
+      return;
+    }
+    $('am-save').disabled = true;
+    $('am-save').textContent = 'Amortizing…';
+    try {
+      const r = await api('/api/txn/amortize', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: t.date, description: t.description, amount: total, months }),
+      });
+      if (!r.success) throw new Error(r.message || 'Split failed');
+      closeSheet();
+      load().catch(() => {});
+    } catch (e) {
+      $('am-save').disabled = false;
+      $('am-save').textContent = 'Amortize';
+      const err = $('am-err');
+      err.textContent = e.message;
+      err.hidden = false;
+    }
+  });
+}
+
+function openSheetEl() {
+  document.body.style.overflow = 'hidden';
+  document.getElementById('sheet').hidden = false;
 }
 
 function esc(s) { return s.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
@@ -866,8 +1003,29 @@ document.getElementById('budget-grid').addEventListener('click', e => {
   const row = e.target.closest('.budget-row');
   if (row) openSheet(row.dataset.acct);
 });
+document.getElementById('txn-body').addEventListener('click', e => {
+  const btn = e.target.closest('.mini-btn');
+  if (!btn) return;
+  const t = (state.filtered || [])[+btn.dataset.i];
+  if (!t) return;
+  if (btn.dataset.act === 'edit') openEditSheet(t);
+  else if (btn.dataset.act === 'amortize') openAmortizeSheet(t);
+  else if (btn.dataset.act === 'delete') {
+    if (!confirm(`Delete “${t.description}” on ${t.date}? This saves immediately.`)) return;
+    (async () => {
+      try {
+        const r = await api('/api/txn/delete', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date: t.date, description: t.description, amount: Math.abs(t.amount) }),
+        });
+        if (!r.success) throw new Error(r.message || 'Delete failed');
+        load().catch(() => {});
+      } catch (e) { alert(e.message); }
+    })();
+  }
+});
 document.getElementById('sheet').addEventListener('click', e => {
-  if (e.target === document.getElementById('sheet') || e.target.closest('.sheet-close')) closeSheet();
+  if (e.target === document.getElementById('sheet') || e.target.closest('.sheet-close') || e.target.closest('[data-close]')) closeSheet();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSheet(); closeWizard(); } });
 
@@ -923,24 +1081,25 @@ function renderPick() {
     <div class="wiz">
       <button class="pick" id="pick-btn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>
-        Choose a screenshot or PDF
-        <span class="sub">Tap to browse your Photos or Files</span>
+        Choose screenshots or a PDF
+        <span class="sub">Pick several — duplicates get skipped</span>
       </button>
-      <p class="hint">Tally reads the image with AI, checks each transaction against your journal, and lets you review the new ones before saving.</p>
+      <p class="hint">Tally reads the images, checks each transaction against your journal, and lets you review the new ones before saving.</p>
     </div>`;
   $('pick-btn').addEventListener('click', () => $('import-file').click());
   $('import-file').onchange = () => {
-    const f = $('import-file').files[0];
-    if (!f) return;
-    uploadFile(f);
+    const files = Array.from($('import-file').files);
+    if (!files.length) return;
+    uploadFiles(files);
     $('import-file').value = '';
   };
 }
 
-async function uploadFile(file) {
-  $('wizard-body').innerHTML = `<div class="wiz"><div class="progress"><i style="width:100%"></i></div><p class="hint">Parsing “${esc(file.name)}” with AI…</p></div>`;
+async function uploadFiles(files) {
+  const n = files.length;
+  $('wizard-body').innerHTML = `<div class="wiz"><div class="progress"><i style="width:100%"></i></div><p class="hint">Parsing ${n} file${n > 1 ? 's' : ''}…</p></div>`;
   const fd = new FormData();
-  fd.append('file', file);
+  files.forEach(f => fd.append('file', f));
   try {
     const d = await api('/api/import', { method: 'POST', body: fd });
     if (d.step === 'card') renderCardConfirm(d);
@@ -952,7 +1111,7 @@ async function uploadFile(file) {
 
 function renderCardConfirm(d) {
   wiz.wizard_id = d.wizard_id;
-  $('wizard-sub').textContent = `${d.count} new transactions (${d.start_date} → ${d.end_date})`;
+  $('wizard-sub').textContent = d.group_note ? `${d.group_note} · ${d.count} new transactions` : `${d.count} new transactions (${d.start_date} → ${d.end_date})`;
   const body = $('wizard-body');
   body.innerHTML = `
     <div class="wiz">
@@ -960,7 +1119,7 @@ function renderCardConfirm(d) {
         <input class="input" id="wiz-card-name" value="${esc(d.card_name)}"></div>
       <div class="field-row"><label for="wiz-card-acc">Account</label>
         <input class="input" id="wiz-card-acc" value="${esc(d.offset_account)}"></div>
-      <p class="hint">Correct the card/account if the AI mis-read the statement, then continue.</p>
+      <p class="hint">Check the card name and account, then continue.</p>
       <button class="btn primary full" id="wiz-card-ok">Looks good — categorise</button>
       <button class="btn ghost full" data-close="1">Cancel</button>
     </div>`;
@@ -982,6 +1141,7 @@ function renderCardConfirm(d) {
 function handleReview(r) {
   if (r.step === 'error') { renderToast('err', r.message); return; }
   if (r.step === 'finish') { renderFinish(r.summary); return; }
+  if (r.step === 'card') { renderCardConfirm(r); return; }
   wiz.cardName = r.card_name || wiz.cardName;
   wiz.idx = r.current_idx; wiz.total = r.total; wiz.current = r.tx;
   renderTxView();
@@ -992,8 +1152,10 @@ function renderTxView() {
   const direction = t.type === 'income' ? 'income' : 'expense';
   const amt = cur.format(t.amount) + (t.original_amount ? ` · from ${cur.format(t.original_amount)}` : '');
   const sugg = t.ai_suggestion
-    ? `<div class="sugg">Best guess: <strong>${esc(t.ai_suggestion)}</strong> <span class="conf">(${Math.round(t.ai_confidence * 100)}% confident)</span></div>`
-    : '<div class="sugg">No AI suggestion — choose a category.</div>';
+    ? `<div class="sugg">Suggested: <strong>${esc(t.ai_suggestion)}</strong></div>`
+    : '<div class="sugg">No suggestion — choose a category.</div>';
+  const chips = (t.account ? `<span class="chip">${esc(t.account)}</span>` : '')
+    + (t.amortize_months ? `<span class="chip">split over ${t.amortize_months} months</span>` : '');
   const pct = Math.round((wiz.idx / wiz.total) * 100);
   $('wizard-sub').textContent = `Card · ${esc(wiz.cardName || '')}`;
   $('wizard-body').innerHTML = `
@@ -1003,6 +1165,7 @@ function renderTxView() {
         <div class="tx-count">${wiz.idx + 1} of ${wiz.total}</div>
         <div class="tx-desc">${esc(t.description)}</div>
         <div class="tx-meta"><span class="${direction}">${direction === 'income' ? '↑ income' : '↓ expense'}</span> ${amt} &nbsp;|&nbsp; ${t.date}</div>
+        ${chips ? `<div class="accs">${chips}</div>` : ''}
         ${sugg}
       </div>
       <div class="wiz-actions">
@@ -1011,6 +1174,7 @@ function renderTxView() {
         <button class="btn ghost full" data-act="edit">Edit</button>
         <button class="btn ghost full" data-act="name">Rename</button>
         <button class="btn ghost full" data-act="split">Split</button>
+        ${t.type !== 'income' ? '<button class="btn ghost full" data-act="amortize">Amortize</button>' : ''}
         <button class="btn danger full" data-act="skip">Skip</button>
       </div>
     </div>`;
@@ -1021,6 +1185,7 @@ function renderTxView() {
     else if (act === 'edit') renderEditForm();
     else if (act === 'name') renderNameInput();
     else if (act === 'split') renderSplitInput();
+    else if (act === 'amortize') renderAmortizeInput();
   }));
 }
 
@@ -1065,6 +1230,40 @@ function renderSplitInput() {
     </div>`;
   $('wiz-split-ok').addEventListener('click', () => doTxAction('split', { value: $('wiz-split').value.trim() }));
   $('wiz-split-back').addEventListener('click', renderTxView);
+}
+
+function renderAmortizeInput() {
+  const total = Math.abs(wiz.current.amount);
+  const body = $('wizard-body');
+  body.innerHTML = `
+    <div class="wiz">
+      <div class="tx-count">${wiz.idx + 1} of ${wiz.total}</div>
+      <div class="tx-desc">${esc(wiz.current.description)}</div>
+      <p class="hint">Turn this payment into a prepaid asset, then expense it in equal parts over the months you pick.</p>
+      <div class="field-row"><label for="wiz-am-months">Months to spread over</label>
+        <input class="input" id="wiz-am-months" type="number" min="2" max="60" step="any" value="10"></div>
+      <p class="hint" id="wiz-am-preview"></p>
+      <button class="btn primary full" id="wiz-am-ok">Save split</button>
+      <button class="btn ghost full" id="wiz-am-back">« Back</button>
+    </div>`;
+  const preview = () => {
+    const raw = $('wiz-am-months').value.trim();
+    const m = Number(raw);
+    if (!(Number.isFinite(m) && m >= 2 && m <= 60)) {
+      $('wiz-am-preview').textContent = raw === '' ? 'Pick at least 2 months.' : 'Months must be a number, e.g. 2.5.';
+      return;
+    }
+    const entries = Math.ceil(m);
+    const per = total / m;
+    const last = total - per * (entries - 1);
+    $('wiz-am-preview').textContent = Number.isInteger(m)
+      ? `→ ${entries} × ${cur.format(per)}/month, starting this month`
+      : `→ ${entries - 1} × ${cur.format(per)}/month + ${cur.format(last)} final, starting this month`;
+  };
+  $('wiz-am-months').addEventListener('input', preview);
+  preview();
+  $('wiz-am-ok').addEventListener('click', () => doTxAction('amortize', { months: $('wiz-am-months').value.trim() }));
+  $('wiz-am-back').addEventListener('click', renderTxView);
 }
 
 function renderEditForm() {
@@ -1133,6 +1332,9 @@ function renderFinish(s) {
   const commit = s.commit
     ? `<div class="toast ok"><strong>${s.success ? 'Committed & pushed ✓' : 'Commit local only'}</strong><div class="muted">${esc(s.commit)}</div>${s.error && !s.success ? `<div class="muted">${esc(s.error)}</div>` : ''}</div>`
     : '';
+  const flush = s.reconcile_flush
+    ? `<div class="toast ok"><strong>Reconcile batch ✓</strong><div class="muted">${esc(s.reconcile_flush)}</div></div>`
+    : '';
   $('wizard-sub').textContent = '';
   $('wizard-body').innerHTML = `
     <div class="wiz">
@@ -1140,6 +1342,7 @@ function renderFinish(s) {
       <div class="toast ok">${lines.join('<br>') || 'Nothing was changed.'}</div>
       ${totals ? `<div>${totals}</div>` : ''}
       ${commit}
+      ${flush}
       <button class="btn primary full" data-close="1">Close</button>
     </div>`;
   load().catch(() => {});
@@ -1235,7 +1438,7 @@ function renderDiff(r) {
           <div class="toast ${s.success ? 'ok' : 'err'}">
             <strong>${s.settled ? 'Settled ✓' : 'Reconciled ✓'}</strong><br>
             ${s.settled ? `Adjusted ${cur.format(s.diff)} → balance now ${cur.format(s.actual)}` : `Balance matches ${cur.format(s.actual)}`}
-            <div class="muted">${s.success ? 'Committed & pushed.' : esc(s.error)}</div>
+            <div class="muted">${s.deferred ? "Batched into this month's reconcile commit." : (s.success ? 'Committed & pushed.' : esc(s.error))}</div>
           </div>
           <button class="btn primary full" data-close="1">Done</button>
         </div>`;
