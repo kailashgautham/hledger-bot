@@ -429,3 +429,58 @@ def reconcile_settle(account: str, actual: float, diff: float) -> dict:
 
 def accounts_list() -> list[str]:
     return writer.get_accounts()
+
+
+def tx_edit(data: dict) -> dict:
+    date_str = data.get("date", "")
+    description = data.get("description", "")
+    amount = float(data.get("amount", 0))
+    changes: dict = {}
+    if data.get("new_description"):
+        changes["description"] = data["new_description"]
+    if data.get("new_date"):
+        changes["date"] = data["new_date"]
+    if data.get("new_amount") not in (None, ""):
+        changes["amount"] = float(data["new_amount"])
+    if data.get("account"):
+        changes["account"] = data["account"]
+    if not changes:
+        return {"success": True, "message": "Nothing changed."}
+    found = writer.edit_transaction(date_str, description, amount, changes)
+    if not found:
+        return {"success": False, "message": "Transaction not found in journal."}
+    jdir = journal_dir(config)
+    files = [str(journal_path.relative_to(jdir))]
+    success, err = git_ops.commit_and_push(
+        f"Edit transaction {changes.get('date', date_str)}", files,
+    )
+    return {"success": success, "message": err or None}
+
+
+def tx_delete(data: dict) -> dict:
+    date_str = data.get("date", "")
+    description = data.get("description", "")
+    amount = float(data.get("amount", 0))
+    found = writer.delete_transaction(date_str, description, amount)
+    if not found:
+        return {"success": False, "message": "Transaction not found in journal."}
+    jdir = journal_dir(config)
+    files = [str(journal_path.relative_to(jdir))]
+    success, err = git_ops.commit_and_push(f"Delete transaction {date_str}", files)
+    return {"success": success, "message": err or None}
+
+
+def tx_amortize(data: dict) -> dict:
+    date_str = data.get("date", "")
+    description = data.get("description", "")
+    amount = float(data.get("amount", 0))
+    months = float(data.get("months", 0))
+    if months < 2:
+        return {"success": False, "message": "Need at least 2 months."}
+    found = writer.amortize_transaction(date_str, description, amount, months)
+    if not found:
+        return {"success": False, "message": "Transaction not found in journal."}
+    jdir = journal_dir(config)
+    files = [str(journal_path.relative_to(jdir))]
+    success, err = git_ops.commit_and_push(f"Amortize transaction {date_str}", files)
+    return {"success": success, "message": err or None}

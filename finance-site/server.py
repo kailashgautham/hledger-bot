@@ -276,6 +276,15 @@ class Handler(BaseHTTPRequestHandler):
             self._json_post(lambda d: workflows.reconcile_settle(
                 d.get("account"), float(d.get("actual")), float(d.get("diff"))))
             return
+        if self.path == "/api/txn/edit":
+            self._json_post(lambda d: workflows.tx_edit(d))
+            return
+        if self.path == "/api/txn/delete":
+            self._json_post(lambda d: workflows.tx_delete(d))
+            return
+        if self.path == "/api/txn/amortize":
+            self._json_post(lambda d: workflows.tx_amortize(d))
+            return
         self._send(404, b"not found", "text/plain")
 
 
