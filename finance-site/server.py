@@ -279,6 +279,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/txn/edit":
             self._json_post(lambda d: workflows.tx_edit(d))
             return
+        if self.path == "/api/txn/add":
+            self._json_post(lambda d: workflows.tx_add(d))
+            return
         if self.path == "/api/txn/delete":
             self._json_post(lambda d: workflows.tx_delete(d))
             return

@@ -431,6 +431,31 @@ def accounts_list() -> list[str]:
     return writer.get_accounts()
 
 
+def tx_add(data: dict) -> dict:
+    date_str = data.get("date", "")
+    description = data.get("description", "")
+    amount = float(data.get("amount", 0))
+    account = data.get("account", "")
+    offset_account = data.get("offset_account", "")
+    if not all([date_str, description, amount, account, offset_account]):
+        return {"success": False, "message": "All fields are required."}
+    tx = {
+        "date": date_str,
+        "description": description,
+        "amount": amount,
+        "account": account,
+    }
+    if account.startswith("income:"):
+        tx["type"] = "income"
+    skipped = writer.append_transactions([tx], offset_account)
+    if skipped:
+        return {"success": False, "message": "Duplicate — already in journal."}
+    jdir = journal_dir(config)
+    files = [str(journal_path.relative_to(jdir))]
+    success, err = git_ops.commit_and_push(f"Add transaction {date_str}", files)
+    return {"success": success, "message": err or None}
+
+
 def tx_edit(data: dict) -> dict:
     date_str = data.get("date", "")
     description = data.get("description", "")
