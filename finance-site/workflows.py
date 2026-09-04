@@ -474,6 +474,10 @@ def tx_edit(data: dict) -> dict:
         changes["account"] = data["account"]
     if data.get("offset_account"):
         changes["offset_account"] = data["offset_account"]
+    if data.get("posting1"):
+        changes["posting1"] = data["posting1"]
+    if data.get("posting2"):
+        changes["posting2"] = data["posting2"]
     if not changes:
         return {"success": True, "message": "Nothing changed."}
     found = writer.edit_transaction(date_str, description, amount, changes, line_no=line_no)

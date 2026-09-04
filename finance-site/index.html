@@ -893,11 +893,12 @@ function renderTxns() {
 }
 
 async function openEditSheet(t) {
-  const acc = t.accounts.find(a => a.startsWith('expenses:') || a.startsWith('income:')) || t.accounts[0] || '';
-  const src = t.accounts.find(a => a.startsWith('assets:') || a.startsWith('liabilities:')) || t.accounts[0] || '';
   let accounts = [];
   try { accounts = (await api('/api/accounts')).accounts || []; } catch (_) {}
-  const allOpts = accounts.map(a => `<option value="${esc(a)}"${a === acc ? ' selected' : ''}>${esc(a)}</option>`).join('');
+  const allOpts = accounts.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+  const post1 = t.accounts[0] || '';
+  const post2 = t.accounts[1] || '';
+  const isTransfer = t.type === 'transfer';
   $('sheet-title').textContent = 'Edit transaction';
   $('sheet-sub').textContent = t.date;
   $('sheet-list').innerHTML = `
@@ -908,15 +909,16 @@ async function openEditSheet(t) {
         <input class="input" id="ed-date" type="date" value="${esc(t.date)}"></div>
       <div class="field-row"><label for="ed-amt">Amount</label>
         <input class="input" id="ed-amt" type="number" step="0.01" min="0" value="${Math.abs(t.amount)}"></div>
-      <div class="field-row"><label for="ed-acc">Category</label>
-        <select class="input" id="ed-acc">${allOpts}</select></div>
-      <div class="field-row"><label for="ed-off">Paid from</label>
-        <select class="input" id="ed-off">${allOpts}</select></div>
+      <div class="field-row"><label for="ed-post1">${isTransfer ? 'From' : 'Category'}</label>
+        <select class="input" id="ed-post1">${allOpts}</select></div>
+      <div class="field-row"><label for="ed-post2">${isTransfer ? 'To' : 'Paid from'}</label>
+        <select class="input" id="ed-post2">${allOpts}</select></div>
       <p class="hint sheet-err" id="ed-err" hidden></p>
       <button class="btn primary full" id="ed-save">Save changes</button>
       <button class="btn ghost full" data-close="1">Cancel</button>
     </div>`;
-  $('ed-off').value = src;
+  $('ed-post1').value = post1;
+  $('ed-post2').value = post2;
   openSheetEl();
   $('ed-save').addEventListener('click', async () => {
     const payload = {
@@ -927,8 +929,8 @@ async function openEditSheet(t) {
       new_description: $('ed-desc').value.trim(),
       new_date: $('ed-date').value,
       new_amount: $('ed-amt').value.trim(),
-      account: $('ed-acc').value.trim(),
-      offset_account: $('ed-off').value,
+      posting1: $('ed-post1').value.trim(),
+      posting2: $('ed-post2').value.trim(),
     };
     $('ed-save').disabled = true;
     $('ed-save').textContent = 'Saving…';

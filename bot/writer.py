@@ -198,8 +198,8 @@ class JournalWriter:
         new_date = changes.get("date", hdate)
         new_desc = changes.get("description", hdesc)
         new_amount = changes.get("amount")
-        new_account = changes.get("account")
-        new_offset = changes.get("offset_account")
+        new_posting1 = changes.get("posting1") or changes.get("account")
+        new_posting2 = changes.get("posting2") or changes.get("offset_account")
 
         hdr = f"{new_date} {new_desc}"
         if hcomment:
@@ -219,10 +219,10 @@ class JournalWriter:
                 continue
             indent, acct, rest = m.group(1), m.group(2), m.group(3)
 
-            if posting_idx == 0 and new_account:
-                acct = new_account
-            elif posting_idx == 1 and new_offset:
-                acct = new_offset
+            if posting_idx == 0 and new_posting1:
+                acct = new_posting1
+            elif posting_idx == 1 and new_posting2:
+                acct = new_posting2
             posting_idx += 1
             if new_amount is not None and self.currency in rest:
                 sign_m = re.search(rf"{re.escape(self.currency)}\s*(-?)", rest)
