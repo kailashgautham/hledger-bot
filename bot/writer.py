@@ -21,8 +21,8 @@ class JournalWriter:
         accounts: set[str] = set()
         for line in self.path.read_text().splitlines():
             stripped = line.strip()
-            if stripped and not stripped.startswith(";") and "  " in stripped:
-                parts = re.split(r"\s{2,}", stripped)
+            if stripped and not stripped.startswith(";") and line.startswith(" "):
+                parts = re.split(r"\s{2,}", stripped) if "  " in stripped else [stripped]
                 if parts:
                     candidate = parts[0].strip()
                     if ":" in candidate and not re.match(r"\d{4}", candidate):
@@ -184,6 +184,7 @@ class JournalWriter:
             hdr += f"  ; {hcomment}"
 
         out = [hdr + "\n"]
+        posting_idx = 0
         for ln in lines[start + 1:end]:
             s = ln.rstrip("\n")
             stripped = s.strip()
@@ -196,10 +197,11 @@ class JournalWriter:
                 continue
             indent, acct, rest = m.group(1), m.group(2), m.group(3)
 
-            if new_account and (acct.startswith("expenses:") or acct.startswith("income:")):
+            if posting_idx == 0 and new_account:
                 acct = new_account
-            if new_offset and (acct.startswith("assets:") or acct.startswith("liabilities:")):
+            elif posting_idx == 1 and new_offset:
                 acct = new_offset
+            posting_idx += 1
             if new_amount is not None and self.currency in rest:
                 sign_m = re.search(rf"{re.escape(self.currency)}\s*(-?)", rest)
                 sign = sign_m.group(1) if sign_m else ""

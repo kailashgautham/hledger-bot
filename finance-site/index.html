@@ -890,14 +890,11 @@ function renderTxns() {
 }
 
 async function openEditSheet(t) {
-  const acc = t.accounts.find(a => a.startsWith('expenses:') || a.startsWith('income:')) || '';
-  const src = t.accounts.find(a => a.startsWith('assets:') || a.startsWith('liabilities:')) || '';
+  const acc = t.accounts.find(a => a.startsWith('expenses:') || a.startsWith('income:')) || t.accounts[0] || '';
+  const src = t.accounts.find(a => a.startsWith('assets:') || a.startsWith('liabilities:')) || t.accounts[0] || '';
   let accounts = [];
   try { accounts = (await api('/api/accounts')).accounts || []; } catch (_) {}
-  const offsets = accounts.filter(a => a.startsWith('assets:') || a.startsWith('liabilities:'));
-  const categories = accounts.filter(a => a.startsWith('expenses:') || a.startsWith('income:'));
-  const catOpts = categories.map(c => `<option value="${esc(c)}"${c === acc ? ' selected' : ''}>${esc(c)}</option>`).join('');
-  const offOpts = offsets.map(o => `<option value="${esc(o)}"${o === src ? ' selected' : ''}>${esc(o)}</option>`).join('');
+  const allOpts = accounts.map(a => `<option value="${esc(a)}"${a === acc ? ' selected' : ''}>${esc(a)}</option>`).join('');
   $('sheet-title').textContent = 'Edit transaction';
   $('sheet-sub').textContent = t.date;
   $('sheet-list').innerHTML = `
@@ -909,13 +906,14 @@ async function openEditSheet(t) {
       <div class="field-row"><label for="ed-amt">Amount</label>
         <input class="input" id="ed-amt" type="number" step="0.01" min="0" value="${Math.abs(t.amount)}"></div>
       <div class="field-row"><label for="ed-acc">Category</label>
-        <select class="input" id="ed-acc">${catOpts}</select></div>
+        <select class="input" id="ed-acc">${allOpts}</select></div>
       <div class="field-row"><label for="ed-off">Paid from</label>
-        <select class="input" id="ed-off">${offOpts}</select></div>
+        <select class="input" id="ed-off">${allOpts}</select></div>
       <p class="hint sheet-err" id="ed-err" hidden></p>
       <button class="btn primary full" id="ed-save">Save changes</button>
       <button class="btn ghost full" data-close="1">Cancel</button>
     </div>`;
+  $('ed-off').value = src;
   openSheetEl();
   $('ed-save').addEventListener('click', async () => {
     const payload = {
@@ -1102,10 +1100,7 @@ $('btn-import').addEventListener('click', () => {
 $('btn-add').addEventListener('click', async () => {
   let accounts = [];
   try { accounts = (await api('/api/accounts')).accounts || []; } catch (_) {}
-  const offsets = accounts.filter(a => a.startsWith('assets:') || a.startsWith('liabilities:'));
-  const categories = accounts.filter(a => a.startsWith('expenses:') || a.startsWith('income:'));
-  const catOpts = categories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
-  const offOpts = offsets.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+  const allOpts = accounts.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
   const today = new Date().toISOString().slice(0, 10);
   $('sheet-title').textContent = 'Add transaction';
   $('sheet-sub').textContent = '';
@@ -1118,9 +1113,9 @@ $('btn-add').addEventListener('click', async () => {
       <div class="field-row"><label for="add-amt">Amount</label>
         <input class="input" id="add-amt" type="number" step="0.01" min="0" placeholder="0.00"></div>
       <div class="field-row"><label for="add-acc">Category</label>
-        <select class="input" id="add-acc">${catOpts}</select></div>
+        <select class="input" id="add-acc">${allOpts}</select></div>
       <div class="field-row"><label for="add-off">Paid from</label>
-        <select class="input" id="add-off">${offOpts}</select></div>
+        <select class="input" id="add-off">${allOpts}</select></div>
       <p class="sheet-err" id="add-err" hidden></p>
       <button class="btn primary full" id="add-save">Add</button>
       <button class="btn ghost full" data-close="1">Cancel</button>
