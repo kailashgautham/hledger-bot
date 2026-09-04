@@ -474,6 +474,9 @@
     background-position: right 14px center;
     padding-right: 36px;
   }
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type=number] { -moz-appearance: textfield; }
   .kv { display: flex; justify-content: space-between; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--sep); font-size: 13px; }
   .kv:last-child { border-bottom: none; }
   .kv .k { color: var(--tertiary); font-weight: 500; flex: none; }
