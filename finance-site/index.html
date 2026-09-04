@@ -701,9 +701,8 @@ function render() {
   document.getElementById('net-worth').textContent = cur.format(d.net_worth);
   document.getElementById('assets').textContent = cur.format(d.assets);
   document.getElementById('liabilities').textContent = cur.format(d.liabilities);
-  const mn = d.month.income - d.month.expenses;
   document.getElementById('month-net').textContent = cur.format(d.month.expenses);
-  document.getElementById('month-hint').textContent = 'earned ' + cur.format(d.month.income) + ' · ' + (mn >= 0 ? 'saved ' : 'overspent ') + cur.format(Math.abs(mn));
+  document.getElementById('month-hint').textContent = 'spent ' + cur.format(d.month.expenses) + ' · earned ' + cur.format(d.month.income) + ' so far';
   document.getElementById('net-worth-hint').textContent = d.assets + ' assets · ' + d.liabilities + ' liabilities';
 
   renderFlow();

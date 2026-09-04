@@ -120,9 +120,9 @@ def compute_insights(monthly, monthly_cats, tx_view, this_month) -> dict:
                           "title": "Savings are thin",
                           "body": f"Only {_fmt(saved)} ({rate:.0%}) left over in {_month_label(target)}. Consider trimming a category."})
         else:
-            cards.append({"tone": "bad",
-                          "title": "Spending exceeded income",
-                          "body": f"You spent {_fmt(exp)} against {_fmt(inc)} earned ({rate:.0%}). Cash balance is shrinking."})
+            cards.append({"tone": "info",
+                          "title": "Income hasn't landed yet this month",
+                          "body": f"Spent {_fmt(exp)} so far, but income typically arrives later in the month. Check back after your payday."})
 
     if prior:
         prev = monthly[prior[-1]]["expenses"]
