@@ -457,7 +457,9 @@ def tx_add(data: dict) -> dict:
 
 
 def tx_edit(data: dict) -> dict:
-    tx_id = data.get("tx_id") or None
+    line_no = data.get("line_no") or None
+    if line_no is not None:
+        line_no = int(line_no)
     date_str = data.get("date", "")
     description = data.get("description", "")
     amount = float(data.get("amount", 0))
@@ -474,7 +476,7 @@ def tx_edit(data: dict) -> dict:
         changes["offset_account"] = data["offset_account"]
     if not changes:
         return {"success": True, "message": "Nothing changed."}
-    found = writer.edit_transaction(date_str, description, amount, changes, tx_id=tx_id)
+    found = writer.edit_transaction(date_str, description, amount, changes, line_no=line_no)
     if not found:
         return {"success": False, "message": "Transaction not found in journal."}
     jdir = journal_dir(config)
@@ -486,11 +488,13 @@ def tx_edit(data: dict) -> dict:
 
 
 def tx_delete(data: dict) -> dict:
-    tx_id = data.get("tx_id") or None
+    line_no = data.get("line_no") or None
+    if line_no is not None:
+        line_no = int(line_no)
     date_str = data.get("date", "")
     description = data.get("description", "")
     amount = float(data.get("amount", 0))
-    found = writer.delete_transaction(date_str, description, amount, tx_id=tx_id)
+    found = writer.delete_transaction(date_str, description, amount, line_no=line_no)
     if not found:
         return {"success": False, "message": "Transaction not found in journal."}
     jdir = journal_dir(config)
@@ -500,14 +504,16 @@ def tx_delete(data: dict) -> dict:
 
 
 def tx_amortize(data: dict) -> dict:
-    tx_id = data.get("tx_id") or None
+    line_no = data.get("line_no") or None
+    if line_no is not None:
+        line_no = int(line_no)
     date_str = data.get("date", "")
     description = data.get("description", "")
     amount = float(data.get("amount", 0))
     months = float(data.get("months", 0))
     if months < 2:
         return {"success": False, "message": "Need at least 2 months."}
-    found = writer.amortize_transaction(date_str, description, amount, months, tx_id=tx_id)
+    found = writer.amortize_transaction(date_str, description, amount, months, line_no=line_no)
     if not found:
         return {"success": False, "message": "Transaction not found in journal."}
     jdir = journal_dir(config)

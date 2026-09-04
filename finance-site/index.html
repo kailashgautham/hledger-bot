@@ -920,7 +920,7 @@ async function openEditSheet(t) {
   openSheetEl();
   $('ed-save').addEventListener('click', async () => {
     const payload = {
-      tx_id: t.tx_id,
+      line_no: t.line_no,
       date: t.date,
       description: t.description,
       amount: Math.abs(t.amount),
@@ -996,7 +996,7 @@ function openAmortizeSheet(t) {
     try {
       const r = await api('/api/txn/amortize', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tx_id: t.tx_id, date: t.date, description: t.description, amount: total, months }),
+        body: JSON.stringify({ line_no: t.line_no, date: t.date, description: t.description, amount: total, months }),
       });
       if (!r.success) throw new Error(r.message || 'Split failed');
       closeSheet();
@@ -1041,7 +1041,7 @@ document.getElementById('txn-body').addEventListener('click', e => {
       try {
         const r = await api('/api/txn/delete', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tx_id: t.tx_id, date: t.date, description: t.description, amount: Math.abs(t.amount) }),
+          body: JSON.stringify({ line_no: t.line_no, date: t.date, description: t.description, amount: Math.abs(t.amount) }),
         });
         if (!r.success) throw new Error(r.message || 'Delete failed');
         load().catch(() => {});
