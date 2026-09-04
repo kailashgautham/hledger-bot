@@ -1,4 +1,5 @@
 import calendar
+import hashlib
 import math
 import re
 from pathlib import Path
@@ -9,6 +10,12 @@ class JournalWriter:
     def __init__(self, journal_path: str, currency: str):
         self.path = Path(journal_path)
         self.currency = currency
+
+    @staticmethod
+    def generate_tx_id(header_line: str) -> str:
+        """Deterministic ID from the raw header line (ignoring ; orig: comment)."""
+        clean = re.sub(r"\s+; orig:.*$", "", header_line.rstrip("\n"))
+        return hashlib.sha256(clean.encode()).hexdigest()[:16]
 
     # ------------------------------------------------------------------
     # Reading helpers
@@ -127,6 +134,23 @@ class JournalWriter:
     # Editing existing transactions
     # ------------------------------------------------------------------
 
+    def find_block_by_id(self, tx_id: str):
+        """Locate a transaction block by its deterministic ID.
+
+        Returns (start_line, end_line) indices or None.
+        """
+        if not self.path.exists():
+            return None
+        lines = self.path.read_text().splitlines(keepends=True)
+        starts = [i for i, line in enumerate(lines)
+                  if re.match(r"\d{4}-\d{2}-\d{2}\s", line)]
+        starts.append(len(lines))
+        for k in range(len(starts) - 1):
+            start, end = starts[k], starts[k + 1]
+            if self.generate_tx_id(lines[start]) == tx_id:
+                return start, end
+        return None
+
     def _find_block(self, date_str: str, description: str, amount: float):
         """Locate a transaction block by date + description + amount.
 
@@ -154,14 +178,15 @@ class JournalWriter:
         return None
 
     def edit_transaction(
-        self, date_str: str, description: str, amount: float, changes: dict
+        self, date_str: str, description: str, amount: float, changes: dict,
+        tx_id: str | None = None,
     ) -> bool:
-        """Rewrite a transaction found by date+description+amount.
+        """Rewrite a transaction found by tx_id (preferred) or date+description+amount.
 
         changes may contain: date, description, amount, account, offset_account.
         Returns True if found and edited.
         """
-        found = self._find_block(date_str, description, amount)
+        found = self.find_block_by_id(tx_id) if tx_id else self._find_block(date_str, description, amount)
         if not found:
             return False
         start, end = found
@@ -215,12 +240,13 @@ class JournalWriter:
         self.path.write_text("".join(lines))
         return True
 
-    def delete_transaction(self, date_str: str, description: str, amount: float) -> bool:
-        """Remove a transaction found by date+description+amount.
+    def delete_transaction(self, date_str: str, description: str, amount: float,
+                           tx_id: str | None = None) -> bool:
+        """Remove a transaction found by tx_id (preferred) or date+description+amount.
 
         Returns True if found and removed.
         """
-        found = self._find_block(date_str, description, amount)
+        found = self.find_block_by_id(tx_id) if tx_id else self._find_block(date_str, description, amount)
         if not found:
             return False
         start, end = found
@@ -230,14 +256,15 @@ class JournalWriter:
         return True
 
     def amortize_transaction(
-        self, date_str: str, description: str, amount: float, months: float
+        self, date_str: str, description: str, amount: float, months: float,
+        tx_id: str | None = None,
     ) -> bool:
         """Replace a lump expense with a prepaid asset + monthly amortisation entries.
 
         months may be fractional (e.g. 2.5): full months pay an equal share and a
         final partial month pays the remainder. Returns True if found and rewritten.
         """
-        found = self._find_block(date_str, description, amount)
+        found = self.find_block_by_id(tx_id) if tx_id else self._find_block(date_str, description, amount)
         if not found:
             return False
         start, end = found

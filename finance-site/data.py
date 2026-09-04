@@ -1,4 +1,5 @@
 """Build the deterministic dashboard dataset from a hledger journal."""
+import hashlib
 import re
 from collections import defaultdict
 from datetime import date
@@ -7,6 +8,11 @@ from balances import account_balances, account_total, parse_amount
 
 _DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
 _STATUS_RE = re.compile(r"^[!*]\s*")
+
+
+def _tx_id(header_line: str) -> str:
+    clean = re.sub(r"\s+; orig:.*$", "", header_line.rstrip("\n"))
+    return hashlib.sha256(clean.encode()).hexdigest()[:16]
 
 BUDGETS: dict[str, float] = {
     "expenses:food": 200,
@@ -38,6 +44,7 @@ def parse_transactions(text: str) -> list[dict]:
                 "date": m.group(1),
                 "description": line[m.end():].split(";")[0].strip(),
                 "postings": [],
+                "_header": line,
             }
             txns.append(current)
         elif current is not None and line[:1].isspace():
@@ -198,6 +205,7 @@ def build_data(text: str, currency: str = "SGD") -> dict:
         expense = sum(p["amount"] for p in postings if p["account"].startswith("expenses:"))
         ttype, amt = _type_amount(postings)
         tx_view.append({
+            "tx_id": _tx_id(t["_header"]),
             "date": t["date"],
             "description": t["description"],
             "type": ttype,
