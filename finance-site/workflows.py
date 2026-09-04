@@ -245,9 +245,9 @@ def tx_action(wizard_id: str, action: str, payload: dict) -> dict:
             account = (payload.get("account") or "").strip()
             if not account:
                 return {"step": "error", "message": "Account can't be empty."}
+            tx["account"] = account
+            tx["ai_suggestion"] = account
             merchant_map.save(tx["description"], account)
-            wizard["confirmed"].append({**tx, "account": account, "status": "changed"})
-            wizard["current_idx"] += 1
 
         elif action == "name":
             new_name = (payload.get("description") or "").strip()
