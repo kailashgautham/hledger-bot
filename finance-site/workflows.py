@@ -204,7 +204,7 @@ def start_categorisation(
 
         for tx in new_txns:
             known_account = merchant_map.lookup(tx["description"])
-            if known_account:
+            if known_account and abs(tx.get("amount", 0)) < 6:
                 wizard["auto_categorized"].append(
                     {**tx, "account": known_account, "status": "auto"}
                 )
@@ -469,6 +469,8 @@ def tx_edit(data: dict) -> dict:
         changes["amount"] = float(data["new_amount"])
     if data.get("account"):
         changes["account"] = data["account"]
+    if data.get("offset_account"):
+        changes["offset_account"] = data["offset_account"]
     if not changes:
         return {"success": True, "message": "Nothing changed."}
     found = writer.edit_transaction(date_str, description, amount, changes)

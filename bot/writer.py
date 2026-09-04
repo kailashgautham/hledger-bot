@@ -29,7 +29,7 @@ class JournalWriter:
                         accounts.add(candidate)
         return sorted(accounts)
 
-    def get_recent_examples(self, n: int = 6) -> list[dict]:
+    def get_recent_examples(self, n: int = 10) -> list[dict]:
         """Return the last n categorised transactions as {description, account} dicts."""
         if not self.path.exists():
             return []
@@ -42,7 +42,7 @@ class JournalWriter:
                 payee = " ".join(line.split()[1:]).strip()
             elif payee and line.strip() and not line.strip().startswith(";"):
                 parts = re.split(r"\s{2,}", line.strip())
-                if parts and ":" in parts[0] and parts[0].startswith("expenses"):
+                if parts and ":" in parts[0] and (parts[0].startswith("expenses") or parts[0].startswith("income")):
                     examples.append({"description": payee, "account": parts[0]})
                     payee = None
         return examples[-n:]
@@ -158,7 +158,7 @@ class JournalWriter:
     ) -> bool:
         """Rewrite a transaction found by date+description+amount.
 
-        changes may contain: date, description, amount, account.
+        changes may contain: date, description, amount, account, offset_account.
         Returns True if found and edited.
         """
         found = self._find_block(date_str, description, amount)
@@ -177,6 +177,7 @@ class JournalWriter:
         new_desc = changes.get("description", hdesc)
         new_amount = changes.get("amount")
         new_account = changes.get("account")
+        new_offset = changes.get("offset_account")
 
         hdr = f"{new_date} {new_desc}"
         if hcomment:
@@ -197,6 +198,8 @@ class JournalWriter:
 
             if new_account and (acct.startswith("expenses:") or acct.startswith("income:")):
                 acct = new_account
+            if new_offset and (acct.startswith("assets:") or acct.startswith("liabilities:")):
+                acct = new_offset
             if new_amount is not None and self.currency in rest:
                 sign_m = re.search(rf"{re.escape(self.currency)}\s*(-?)", rest)
                 sign = sign_m.group(1) if sign_m else ""

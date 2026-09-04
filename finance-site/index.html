@@ -495,6 +495,7 @@
   .acc-item:hover { background: var(--glass-fill-2); }
   .acc-item:active { transform: scale(0.99); }
   .acc-item.sugg { border-color: var(--tint); box-shadow: 0 0 0 2px color-mix(in srgb, var(--tint) 30%, transparent); }
+  .acc-item.selected { border-color: var(--tint); background: color-mix(in srgb, var(--tint) 15%, var(--input-fill)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--tint) 30%, transparent); }
   .acc-item .tag { font-size: 11px; font-weight: 700; color: var(--tint); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
   .toast {
     padding: 14px 16px; border-radius: var(--r-lg); font-size: 14px; line-height: 1.5;
@@ -880,8 +881,15 @@ function renderTxns() {
   }).join('');
 }
 
-function openEditSheet(t) {
+async function openEditSheet(t) {
   const acc = t.accounts.find(a => a.startsWith('expenses:') || a.startsWith('income:')) || '';
+  const src = t.accounts.find(a => a.startsWith('assets:') || a.startsWith('liabilities:')) || '';
+  let accounts = [];
+  try { accounts = (await api('/api/accounts')).accounts || []; } catch (_) {}
+  const offsets = accounts.filter(a => a.startsWith('assets:') || a.startsWith('liabilities:'));
+  const categories = accounts.filter(a => a.startsWith('expenses:') || a.startsWith('income:'));
+  const catOpts = categories.map(c => `<option value="${esc(c)}">`).join('');
+  const offOpts = offsets.map(o => `<option value="${esc(o)}">`).join('');
   $('sheet-title').textContent = 'Edit transaction';
   $('sheet-sub').textContent = t.date;
   $('sheet-list').innerHTML = `
@@ -893,11 +901,15 @@ function openEditSheet(t) {
       <div class="field-row"><label for="ed-amt">Amount</label>
         <input class="input" id="ed-amt" type="number" step="0.01" min="0" value="${Math.abs(t.amount)}"></div>
       <div class="field-row"><label for="ed-acc">Category</label>
-        <input class="input" id="ed-acc" placeholder="expenses:food" value="${esc(acc)}"></div>
+        <input class="input" id="ed-acc" list="ed-acc-list" placeholder="expenses:food" value="${esc(acc)}">
+        <datalist id="ed-acc-list">${catOpts}</datalist></div>
+      <div class="field-row"><label for="ed-off">Paid from</label>
+        <select class="input" id="ed-off">${offOpts}</select></div>
       <p class="hint sheet-err" id="ed-err" hidden></p>
       <button class="btn primary full" id="ed-save">Save changes</button>
       <button class="btn ghost full" data-close="1">Cancel</button>
     </div>`;
+  if (src) $('ed-off').value = src;
   openSheetEl();
   $('ed-save').addEventListener('click', async () => {
     const payload = {
@@ -908,6 +920,7 @@ function openEditSheet(t) {
       new_date: $('ed-date').value,
       new_amount: $('ed-amt').value.trim(),
       account: $('ed-acc').value.trim(),
+      offset_account: $('ed-off').value,
     };
     $('ed-save').disabled = true;
     $('ed-save').textContent = 'Saving…';
@@ -1383,7 +1396,11 @@ async function renderAccountPicker() {
       <div class="acc-list">${rows}</div>
       <button class="btn ghost full" id="wiz-acc-back">« Back</button>
     </div>`;
-  bodyQuery('.acc-item', b => b.addEventListener('click', () => doTxAction('category', { account: b.dataset.acc })));
+  bodyQuery('.acc-item', b => b.addEventListener('click', () => {
+    $('wiz-custom-acc').value = b.dataset.acc;
+    bodyQuery('.acc-item', el => el.classList.remove('selected'));
+    b.classList.add('selected');
+  }));
   $('wiz-custom-ok').addEventListener('click', () => doTxAction('category', { account: $('wiz-custom-acc').value.trim() }));
   $('wiz-acc-back').addEventListener('click', renderTxView);
 }
