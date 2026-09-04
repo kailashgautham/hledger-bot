@@ -209,13 +209,16 @@ def start_categorisation(
                     {**tx, "account": known_account, "status": "auto"}
                 )
             else:
-                is_income = tx.get("type") == "income"
-                if is_income:
-                    suggestion = ("income:unknown", 0.5)
+                if known_account:
+                    suggestion = (known_account, 0.99)
                 else:
-                    suggestion = categoriser.suggest_category(
-                        tx["description"], tx["amount"], currency, accounts, examples
-                    )
+                    is_income = tx.get("type") == "income"
+                    if is_income:
+                        suggestion = ("income:unknown", 0.5)
+                    else:
+                        suggestion = categoriser.suggest_category(
+                            tx["description"], tx["amount"], currency, accounts, examples
+                        )
                 wizard["pending"].append({
                     **tx,
                     "ai_suggestion": suggestion[0] if suggestion else None,
