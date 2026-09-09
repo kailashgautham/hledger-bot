@@ -17,7 +17,19 @@ BUDGETS: dict[str, float] = {
 }
 OTHERS_BUDGET = 60.0
 OTHERS_ACCOUNT = "expenses:other"
-OTHERS_EXCLUDE = {"expenses:taxes", "expenses:donation"}
+# Accounts that are money out but not "spending" you can act on. One list,
+# applied everywhere: the headline spend figure, the cash-flow bars, the
+# category breakdown, the per-category insights and the budget rows. Previously
+# these were dropped from the budget "Other" bucket but still counted in the
+# headline, so the two could never reconcile.
+# They remain real outflow: the transactions stay in the ledger view, the total
+# is reported as month.excluded, and the savings figure still nets them off.
+# Matching is by account prefix, so expenses:taxes:property is covered too.
+SPEND_EXCLUDE = ("expenses:taxes", "expenses:donation")
+
+
+def is_excluded_from_spend(account: str) -> bool:
+    return any(account == a or account.startswith(a + ":") for a in SPEND_EXCLUDE)
 LABELS: dict[str, str] = {
     "expenses:food": "Food",
     "expenses:fitness": "Fitness",
@@ -95,6 +107,10 @@ def compute_insights(monthly, monthly_cats, tx_view, this_month) -> dict:
 
     target = mkeys[-1]
     inc, exp = monthly[target]["income"], monthly[target]["expenses"]
+    # Tax is left out of `exp` so it can't distort spending comparisons, but it
+    # is still money that left the account — netting it off here keeps the
+    # savings figure honest rather than flattering.
+    excl = monthly[target].get("excluded", 0.0)
     days = (max(1, min(today.day, _days_in_month(target)))
             if target == this_month else _days_in_month(target))
     daily = exp / days
@@ -106,7 +122,7 @@ def compute_insights(monthly, monthly_cats, tx_view, this_month) -> dict:
     cards = []
 
     if inc > 0:
-        saved, rate = inc - exp, (inc - exp) / inc
+        saved, rate = inc - exp - excl, (inc - exp - excl) / inc
         if rate >= 0.20:
             cards.append({"tone": "good",
                           "title": "Strong month — you kept 20%+ of your income",
@@ -182,7 +198,8 @@ def build_data(text: str, currency: str = "SGD") -> dict:
     assets = sum(account_total(balances, a, currency) for a in balances if a.startswith("assets:"))
     liabilities = sum(account_total(balances, a, currency) for a in balances if a.startswith("liabilities:"))
 
-    monthly: dict[str, dict] = defaultdict(lambda: {"income": 0.0, "expenses": 0.0})
+    monthly: dict[str, dict] = defaultdict(
+        lambda: {"income": 0.0, "expenses": 0.0, "excluded": 0.0})
     monthly_cats: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     expense_cats: dict[str, float] = defaultdict(float)
     monthly_income: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
@@ -196,7 +213,12 @@ def build_data(text: str, currency: str = "SGD") -> dict:
             {"account": p["account"], "amount": -total} for p in missing
         ]
         income = sum(abs(p["amount"]) for p in postings if p["account"].startswith("income:"))
-        expense = sum(p["amount"] for p in postings if p["account"].startswith("expenses:"))
+        expense = sum(p["amount"] for p in postings
+                      if p["account"].startswith("expenses:")
+                      and not is_excluded_from_spend(p["account"]))
+        excluded = sum(p["amount"] for p in postings
+                       if p["account"].startswith("expenses:")
+                       and is_excluded_from_spend(p["account"]))
         ttype, amt = _type_amount(postings)
         tx_view.append({
             "line_no": t["_line"],
@@ -209,10 +231,13 @@ def build_data(text: str, currency: str = "SGD") -> dict:
         month = t["date"][:7]
         monthly[month]["income"] += income
         monthly[month]["expenses"] += expense
+        monthly[month]["excluded"] += excluded
         for p in postings:
             if not p["amount"]:
                 continue
             if p["account"].startswith("expenses:"):
+                if is_excluded_from_spend(p["account"]):
+                    continue
                 expense_cats[p["account"]] += p["amount"]
                 monthly_cats[month][p["account"]] += p["amount"]
             elif p["account"].startswith("income:"):
@@ -222,7 +247,7 @@ def build_data(text: str, currency: str = "SGD") -> dict:
     months = sorted(monthly)
     today = date.today().isoformat()
     this_month = today[:7]
-    tm = monthly.get(this_month, {"income": 0.0, "expenses": 0.0})
+    tm = monthly.get(this_month, {"income": 0.0, "expenses": 0.0, "excluded": 0.0})
 
     insights = compute_insights(monthly, {m: dict(c) for m, c in monthly_cats.items()},
                                 tx_view, this_month)
@@ -242,7 +267,8 @@ def build_data(text: str, currency: str = "SGD") -> dict:
             "warn": not (spent > budget) and spent >= budget * 0.75,
             "members": [acct],
         })
-    others = {a: v for a, v in budget_cats.items() if a not in BUDGETS and a not in OTHERS_EXCLUDE}
+    # Excluded accounts never reach budget_cats, so no extra filter is needed.
+    others = {a: v for a, v in budget_cats.items() if a not in BUDGETS}
     others_total = sum(others.values())
     budget_rows.append({
         "account": OTHERS_ACCOUNT,
@@ -273,10 +299,15 @@ def build_data(text: str, currency: str = "SGD") -> dict:
             "key": this_month,
             "income": round(tm["income"], 2),
             "expenses": round(tm["expenses"], 2),
+            # Outflow deliberately kept out of "expenses" (tax). Surfaced so the
+            # dashboard can show it rather than silently losing the money.
+            "excluded": round(tm.get("excluded", 0.0), 2),
         },
         "monthly": [
             {"month": m, "income": round(monthly[m]["income"], 2),
-             "expenses": round(monthly[m]["expenses"], 2)} for m in months if m <= this_month
+             "expenses": round(monthly[m]["expenses"], 2),
+             "excluded": round(monthly[m].get("excluded", 0.0), 2)}
+            for m in months if m <= this_month
         ],
         "expense_categories": by_magnitude(expense_cats),
         "income_categories": by_magnitude(monthly_income.get(this_month, {})),
