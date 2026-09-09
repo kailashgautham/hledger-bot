@@ -1,42 +1,118 @@
 """Build the deterministic dashboard dataset from a hledger journal."""
+import json
+import logging
 import re
 from collections import defaultdict
 from datetime import date
+from pathlib import Path
 
 from balances import account_balances, account_total, parse_amount
+
+logger = logging.getLogger(__name__)
 
 _DATE_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})")
 _STATUS_RE = re.compile(r"^[!*]\s*")
 
-BUDGETS: dict[str, float] = {
-    "expenses:food": 200,
-    "expenses:fitness": 90,
-    "expenses:subscriptions": 20,
-    "expenses:entertainment": 50,
-    "expenses:transportation": 80,
-}
-OTHERS_BUDGET = 60.0
 OTHERS_ACCOUNT = "expenses:other"
-# Accounts that are money out but not "spending" you can act on. One list,
-# applied everywhere: the headline spend figure, the cash-flow bars, the
-# category breakdown, the per-category insights and the budget rows. Previously
-# these were dropped from the budget "Other" bucket but still counted in the
-# headline, so the two could never reconcile.
-# They remain real outflow: the transactions stay in the ledger view, the total
-# is reported as month.excluded, and the savings figure still nets them off.
-# Matching is by account prefix, so expenses:taxes:property is covered too.
-SPEND_EXCLUDE = ("expenses:taxes", "expenses:donation")
+SETTINGS_FILENAME = "budgets.json"
+
+# Used when no budgets.json is present, so a fresh install still renders.
+DEFAULT_SETTINGS: dict = {
+    "budgets": {
+        "expenses:food": {"limit": 200, "label": "Food"},
+        "expenses:fitness": {"limit": 90, "label": "Fitness"},
+        "expenses:subscriptions": {"limit": 20, "label": "Subscriptions"},
+        "expenses:entertainment": {"limit": 50, "label": "Entertainment"},
+        "expenses:transportation": {"limit": 80, "label": "Transport"},
+    },
+    "other_budget": 60.0,
+    # Accounts that are money out but not "spending" you can act on. One list,
+    # applied everywhere: the headline spend figure, the cash-flow bars, the
+    # category breakdown, the per-category insights and the budget rows.
+    # They remain real outflow: the transactions stay in the ledger view, the
+    # total is reported as month.excluded, and savings still nets them off.
+    # Matching is by account prefix, so expenses:taxes:property is covered too.
+    "exclude_from_spend": ["expenses:taxes", "expenses:donation"],
+}
+
+
+def settings_path(journal: Path) -> Path:
+    """budgets.json lives beside the journal, inside the same git repo, so
+    edits are versioned with the ledger and need no redeploy."""
+    return journal.parent / SETTINGS_FILENAME
+
+
+def load_settings(path: Path | None) -> dict:
+    """Read budgets.json over the defaults.
+
+    A missing or malformed file must never take the dashboard down, so this
+    falls back to the defaults and logs rather than raising.
+    """
+    settings = {
+        "budgets": dict(DEFAULT_SETTINGS["budgets"]),
+        "other_budget": DEFAULT_SETTINGS["other_budget"],
+        "exclude_from_spend": list(DEFAULT_SETTINGS["exclude_from_spend"]),
+    }
+    if not path or not path.exists():
+        return settings
+    try:
+        raw = json.loads(path.read_text())
+    except Exception:
+        logger.exception("%s is not valid JSON; using defaults", path)
+        return settings
+
+    budgets = raw.get("budgets")
+    if isinstance(budgets, dict):
+        parsed = {}
+        for account, spec in budgets.items():
+            # Accept {"limit": 200, "label": "Food"} or a bare number.
+            if isinstance(spec, dict):
+                limit, label = spec.get("limit"), spec.get("label")
+            else:
+                limit, label = spec, None
+            try:
+                limit = float(limit)
+            except (TypeError, ValueError):
+                logger.warning("budget for %s is not a number; skipped", account)
+                continue
+            # A zero budget would divide by zero when computing percentages.
+            if limit <= 0:
+                logger.warning("budget for %s must be > 0; skipped", account)
+                continue
+            parsed[account] = {
+                "limit": limit,
+                "label": label or account.replace("expenses:", "").title(),
+            }
+        settings["budgets"] = parsed
+
+    other = raw.get("other_budget")
+    if other is not None:
+        try:
+            if float(other) > 0:
+                settings["other_budget"] = float(other)
+        except (TypeError, ValueError):
+            logger.warning("other_budget is not a number; using default")
+
+    exclude = raw.get("exclude_from_spend")
+    if isinstance(exclude, list):
+        settings["exclude_from_spend"] = [str(a) for a in exclude]
+
+    return settings
+
+
+def _excluder(settings: dict):
+    prefixes = tuple(settings.get("exclude_from_spend") or ())
+
+    def is_excluded(account: str) -> bool:
+        return any(account == a or account.startswith(a + ":") for a in prefixes)
+
+    return is_excluded
 
 
 def is_excluded_from_spend(account: str) -> bool:
-    return any(account == a or account.startswith(a + ":") for a in SPEND_EXCLUDE)
-LABELS: dict[str, str] = {
-    "expenses:food": "Food",
-    "expenses:fitness": "Fitness",
-    "expenses:subscriptions": "Subscriptions",
-    "expenses:entertainment": "Entertainment",
-    "expenses:transportation": "Transport",
-}
+    """Default-settings convenience wrapper, used by tests and callers that
+    have no settings object to hand."""
+    return _excluder(DEFAULT_SETTINGS)(account)
 
 
 def parse_transactions(text: str) -> list[dict]:
@@ -93,12 +169,14 @@ def _month_label(key: str) -> str:
     return date.fromisoformat(key + "-01").strftime("%B %Y")
 
 
-def _fmt(v: float) -> str:
-    return f"SGD {v:,.2f}"
+def _fmt(v: float, currency: str = "SGD") -> str:
+    return f"{currency} {v:,.2f}"
 
 
-def compute_insights(monthly, monthly_cats, tx_view, this_month) -> dict:
+def compute_insights(monthly, monthly_cats, tx_view, this_month,
+                     currency: str = "SGD") -> dict:
     """Deterministic monthly insights: overspending flags + positive signals."""
+    fmt = lambda v: _fmt(v, currency)  # noqa: E731
     today = date.today()
     mkeys = sorted(m for m in monthly
                    if monthly[m]["expenses"] > 0 and m <= this_month)
@@ -126,19 +204,19 @@ def compute_insights(monthly, monthly_cats, tx_view, this_month) -> dict:
         if rate >= 0.20:
             cards.append({"tone": "good",
                           "title": "Strong month — you kept 20%+ of your income",
-                          "body": f"You saved {_fmt(saved)} of {_fmt(inc)} earned in {_month_label(target)} ({rate:.0%}). Great momentum."})
+                          "body": f"You saved {fmt(saved)} of {fmt(inc)} earned in {_month_label(target)} ({rate:.0%}). Great momentum."})
         elif rate >= 0.05:
             cards.append({"tone": "good",
                           "title": "Positive savings this month",
-                          "body": f"You saved {_fmt(saved)} of {_fmt(inc)} ({rate:.0%}) in {_month_label(target)}."})
+                          "body": f"You saved {fmt(saved)} of {fmt(inc)} ({rate:.0%}) in {_month_label(target)}."})
         elif rate >= 0:
             cards.append({"tone": "info",
                           "title": "Savings are thin",
-                          "body": f"Only {_fmt(saved)} ({rate:.0%}) left over in {_month_label(target)}. Consider trimming a category."})
+                          "body": f"Only {fmt(saved)} ({rate:.0%}) left over in {_month_label(target)}. Consider trimming a category."})
         else:
             cards.append({"tone": "info",
                           "title": "Income hasn't landed yet this month",
-                          "body": f"Spent {_fmt(exp)} so far, but income typically arrives later in the month. Check back after your payday."})
+                          "body": f"Spent {fmt(exp)} so far, but income typically arrives later in the month. Check back after your payday."})
 
     if prior:
         prev = monthly[prior[-1]]["expenses"]
@@ -152,7 +230,7 @@ def compute_insights(monthly, monthly_cats, tx_view, this_month) -> dict:
                 tone, dirn = "info", "about flat"
             cards.append({"tone": tone,
                           "title": f"Spending {dirn} vs {_month_label(prior[-1])}",
-                          "body": f"{_fmt(exp)} this month vs {_fmt(prev)} ({'+' if delta > 0 else ''}{_fmt(delta)})."})
+                          "body": f"{fmt(exp)} this month vs {fmt(prev)} ({'+' if delta > 0 else ''}{fmt(delta)})."})
     else:
         cards.append({"tone": "info",
                       "title": "First full month tracked",
@@ -161,7 +239,7 @@ def compute_insights(monthly, monthly_cats, tx_view, this_month) -> dict:
     if top_acct:
         cards.append({"tone": "info",
                       "title": f"Top category: {top_acct.replace('expenses:', '')}",
-                      "body": f"{top_acct.replace('expenses:', '')} was {top_amt / exp:.0%} of spend ({_fmt(top_amt)}) in {_month_label(target)}."})
+                      "body": f"{top_acct.replace('expenses:', '')} was {top_amt / exp:.0%} of spend ({fmt(top_amt)}) in {_month_label(target)}."})
 
     for acct, amt in cats:
         if amt < 25:
@@ -172,14 +250,14 @@ def compute_insights(monthly, monthly_cats, tx_view, this_month) -> dict:
             if amt > avg * 1.5 and amt - avg >= 20:
                 cards.append({"tone": "warn",
                               "title": f"Overspending on {acct.replace('expenses:', '')}",
-                              "body": f"{_fmt(amt)} vs your usual {_fmt(avg)} — {((amt - avg) / avg):.0%} more than normal. This is the main thing to watch."})
+                              "body": f"{fmt(amt)} vs your usual {fmt(avg)} — {((amt - avg) / avg):.0%} more than normal. This is the main thing to watch."})
 
     exps = [t for t in tx_view if t["type"] == "expense" and t["amount"] < 0 and t["date"].startswith(target)]
     if exps:
         biggest = max(exps, key=lambda t: abs(t["amount"]))
         cards.append({"tone": "info",
                       "title": "Biggest purchase",
-                      "body": f"{biggest['description']} — {_fmt(abs(biggest['amount']))} on {biggest['date']}."})
+                      "body": f"{biggest['description']} — {fmt(abs(biggest['amount']))} on {biggest['date']}."})
 
     return {
         "month": target,
@@ -191,7 +269,12 @@ def compute_insights(monthly, monthly_cats, tx_view, this_month) -> dict:
     }
 
 
-def build_data(text: str, currency: str = "SGD") -> dict:
+def build_data(text: str, currency: str = "SGD", settings: dict | None = None,
+               name: str = "") -> dict:
+    settings = settings or load_settings(None)
+    is_excluded = _excluder(settings)
+    budgets = settings["budgets"]
+    other_budget = settings["other_budget"]
     balances = account_balances(text)
     txns = parse_transactions(text)
 
@@ -215,10 +298,10 @@ def build_data(text: str, currency: str = "SGD") -> dict:
         income = sum(abs(p["amount"]) for p in postings if p["account"].startswith("income:"))
         expense = sum(p["amount"] for p in postings
                       if p["account"].startswith("expenses:")
-                      and not is_excluded_from_spend(p["account"]))
+                      and not is_excluded(p["account"]))
         excluded = sum(p["amount"] for p in postings
                        if p["account"].startswith("expenses:")
-                       and is_excluded_from_spend(p["account"]))
+                       and is_excluded(p["account"]))
         ttype, amt = _type_amount(postings)
         tx_view.append({
             "line_no": t["_line"],
@@ -236,7 +319,7 @@ def build_data(text: str, currency: str = "SGD") -> dict:
             if not p["amount"]:
                 continue
             if p["account"].startswith("expenses:"):
-                if is_excluded_from_spend(p["account"]):
+                if is_excluded(p["account"]):
                     continue
                 expense_cats[p["account"]] += p["amount"]
                 monthly_cats[month][p["account"]] += p["amount"]
@@ -249,17 +332,15 @@ def build_data(text: str, currency: str = "SGD") -> dict:
     this_month = today[:7]
     tm = monthly.get(this_month, {"income": 0.0, "expenses": 0.0, "excluded": 0.0})
 
-    insights = compute_insights(monthly, {m: dict(c) for m, c in monthly_cats.items()},
-                                tx_view, this_month)
     budget_month = this_month
     budget_cats = {a: v for a, v in monthly_cats.get(budget_month, {}).items() if v > 0}
     budget_rows = []
-    for acct, spent in sorted(BUDGETS.items(), key=lambda kv: -budget_cats.get(kv[0], 0.0)):
-        budget = BUDGETS[acct]
+    for acct in sorted(budgets, key=lambda a: -budget_cats.get(a, 0.0)):
+        budget = budgets[acct]["limit"]
         spent = budget_cats.get(acct, 0.0)
         budget_rows.append({
             "account": acct,
-            "label": LABELS.get(acct, acct.replace("expenses:", "").title()),
+            "label": budgets[acct]["label"],
             "spent": round(spent, 2),
             "budget": budget,
             "pct": round(spent / budget * 100, 1),
@@ -268,16 +349,16 @@ def build_data(text: str, currency: str = "SGD") -> dict:
             "members": [acct],
         })
     # Excluded accounts never reach budget_cats, so no extra filter is needed.
-    others = {a: v for a, v in budget_cats.items() if a not in BUDGETS}
+    others = {a: v for a, v in budget_cats.items() if a not in budgets}
     others_total = sum(others.values())
     budget_rows.append({
         "account": OTHERS_ACCOUNT,
         "label": "Other",
         "spent": round(others_total, 2),
-        "budget": OTHERS_BUDGET,
-        "pct": round(others_total / OTHERS_BUDGET * 100, 1),
-        "over": others_total > OTHERS_BUDGET,
-        "warn": not (others_total > OTHERS_BUDGET) and others_total >= OTHERS_BUDGET * 0.75,
+        "budget": other_budget,
+        "pct": round(others_total / other_budget * 100, 1),
+        "over": others_total > other_budget,
+        "warn": not (others_total > other_budget) and others_total >= other_budget * 0.75,
         "members": sorted(others.keys()),
     })
 
@@ -286,11 +367,12 @@ def build_data(text: str, currency: str = "SGD") -> dict:
                 sorted(items.items(), key=lambda kv: -kv[1])]
 
     insights = compute_insights(monthly, {m: dict(c) for m, c in monthly_cats.items()},
-                                tx_view, this_month)
+                                tx_view, this_month, currency)
 
     return {
         "generated_at": today,
         "currency": currency,
+        "name": name,
         "as_of": today,
         "net_worth": round(assets + liabilities, 2),
         "assets": round(assets, 2),

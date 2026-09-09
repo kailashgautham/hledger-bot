@@ -133,6 +133,63 @@ def test_budgets_reconcile_with_headline_spend():
     assert budgeted == month_of(d)["expenses"] == 70.0, (budgeted, month_of(d))
 
 
+def test_settings_loaded_from_file(tmp=None):
+    """budgets.json overrides the defaults, including labels and exclusions."""
+    import json
+    import tempfile
+    from data import load_settings, settings_path
+    with tempfile.TemporaryDirectory() as d:
+        journal = Path(d) / "journal.hledger"
+        path = settings_path(journal)
+        assert path.name == "budgets.json"
+        path.write_text(json.dumps({
+            "budgets": {"expenses:coffee": {"limit": 45, "label": "Coffee"}},
+            "other_budget": 25,
+            "exclude_from_spend": ["expenses:tuition"],
+        }))
+        s = load_settings(path)
+        assert s["budgets"] == {"expenses:coffee": {"limit": 45.0, "label": "Coffee"}}, s
+        assert s["other_budget"] == 25.0
+        assert s["exclude_from_spend"] == ["expenses:tuition"]
+
+        d2 = build_data(journal_text_with_coffee(), "SGD", s)
+        labels = [b["label"] for b in d2["budgets"]["items"]]
+        assert labels == ["Coffee", "Other"], labels
+
+
+def journal_text_with_coffee() -> str:
+    return f"""
+{MONTH}-03 Kopi
+    expenses:coffee           SGD 5.00
+    liabilities:creditcard:dbs
+"""
+
+
+def test_bad_settings_fall_back_instead_of_crashing():
+    import tempfile
+    from data import load_settings
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "budgets.json"
+        path.write_text("{ not json at all")
+        s = load_settings(path)
+        assert "expenses:food" in s["budgets"], s
+        # a zero limit would divide by zero when computing percentages
+        path.write_text('{"budgets": {"expenses:x": {"limit": 0}}}')
+        assert load_settings(path)["budgets"] == {}
+
+
+def test_currency_flows_into_insight_text():
+    d = build_data(journal(SALARY, LUNCH), "USD")
+    assert d["currency"] == "USD"
+    bodies = " ".join(c["body"] for c in d["insights"]["cards"])
+    assert "USD" in bodies and "SGD" not in bodies, bodies
+
+
+def test_name_is_passed_through():
+    assert build_data(journal(LUNCH), "SGD", None, "Ada")["name"] == "Ada"
+    assert build_data(journal(LUNCH))["name"] == ""
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

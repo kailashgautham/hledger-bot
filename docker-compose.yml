@@ -23,6 +23,8 @@ services:
       - SITE_USER=${FINANCE_SITE_USER}
       - SITE_PASS=${FINANCE_SITE_PASS}
       - SITE_SECRET=${SITE_SECRET}
+      - SITE_NAME=${SITE_NAME}
+      - SITE_CURRENCY=${SITE_CURRENCY:-SGD}
       - HLEDGER_PATH=/finance/journal.hledger
       - JOURNAL_PATH=/finance/journal.hledger
     ports:

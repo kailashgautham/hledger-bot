@@ -866,7 +866,21 @@
 </nav>
 
 <script>
-const cur = new Intl.NumberFormat('en-SG', { style: 'currency', currency: 'SGD', minimumFractionDigits: 2 });
+// Currency comes from the server (SITE_CURRENCY); these are rebuilt on load.
+// A bad code would throw inside Intl, so fall back rather than break render.
+let cur = makeCurrency('SGD');
+let curCompact = makeCurrency('SGD', true);
+function makeCurrency(code, compact) {
+  const opts = compact
+    ? { style: 'currency', currency: code, notation: 'compact', maximumFractionDigits: 2 }
+    : { style: 'currency', currency: code, minimumFractionDigits: 2 };
+  try {
+    return new Intl.NumberFormat('en-SG', opts);
+  } catch (_) {
+    return new Intl.NumberFormat('en-SG', { ...opts, currency: 'SGD' });
+  }
+}
+
 const PAGE_SIZE = 60;
 const STALE_MS = 60 * 1000;
 const state = { data: null, month: 'all', type: 'all', q: '', limit: PAGE_SIZE, loadedAt: 0 };
@@ -916,7 +930,9 @@ function showLoadError(err) {
 function greeting() {
   const h = new Date().getHours();
   const part = h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : h < 22 ? 'Good evening' : 'Good night';
-  return `${part}, Kailash`;
+  // Name comes from SITE_NAME; without it the greeting just stands alone.
+  const name = (state.data && state.data.name) || '';
+  return name ? `${part}, ${name}` : part;
 }
 
 function fmtDate(iso) {
@@ -944,10 +960,6 @@ function fmtMonth(key, short) {
     : { month: 'long', year: 'numeric' }).format(d);
 }
 
-const curCompact = new Intl.NumberFormat('en-SG', {
-  style: 'currency', currency: 'SGD', notation: 'compact', maximumFractionDigits: 2,
-});
-
 /* Headline figures share a narrow card. Past eight figures the exact cents
    stop being useful and start breaking the layout, so abbreviate and keep
    the precise value in the tooltip. */
@@ -964,6 +976,7 @@ function fmtTime(ms) {
 
 function render() {
   const d = state.data;
+  if (d.currency) { cur = makeCurrency(d.currency); curCompact = makeCurrency(d.currency, true); }
   $('greeting').textContent = greeting();
   $('asof').textContent = 'Tally · as of ' + fmtDate(d.as_of);
   setStat('net-worth', d.net_worth);

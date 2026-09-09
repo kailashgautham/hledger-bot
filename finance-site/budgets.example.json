@@ -1,0 +1,20 @@
+{
+  "_comment": [
+    "Copy this to budgets.json in the same directory as your journal",
+    "(alongside journal.hledger, so it is versioned in the finance repo).",
+    "Edits take effect on the next page load - no redeploy, no restart.",
+    "A missing or malformed file falls back to the built-in defaults."
+  ],
+
+  "budgets": {
+    "expenses:food": { "limit": 200, "label": "Food" },
+    "expenses:fitness": { "limit": 90, "label": "Fitness" },
+    "expenses:subscriptions": { "limit": 20, "label": "Subscriptions" },
+    "expenses:entertainment": { "limit": 50, "label": "Entertainment" },
+    "expenses:transportation": { "limit": 80, "label": "Transport" }
+  },
+
+  "other_budget": 60,
+
+  "exclude_from_spend": ["expenses:taxes", "expenses:donation"]
+}

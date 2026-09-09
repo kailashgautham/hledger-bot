@@ -18,7 +18,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from data import build_data
+from data import build_data, load_settings, settings_path
 import workflows
 
 logger = logging.getLogger(__name__)
@@ -31,6 +31,7 @@ SITE_USER = os.environ.get("SITE_USER", "")
 SITE_PASS = os.environ.get("SITE_PASS", "")
 SITE_SECRET = os.environ.get("SITE_SECRET", "") or secrets.token_hex(16)
 CURRENCY = os.environ.get("SITE_CURRENCY", "SGD")
+SITE_NAME = os.environ.get("SITE_NAME", "")
 SESSION_TTL = 60 * 60 * 24 * 30  # 30 days
 COOKIE_NAME = "finance_session"
 
@@ -41,13 +42,21 @@ _lock = threading.Lock()
 _cache: dict = {"mtime": None, "data": None}
 
 
+def _mtime(path: Path) -> float:
+    return path.stat().st_mtime if path.exists() else 0
+
+
 def get_data() -> dict:
-    mtime = HLEDGER_PATH.stat().st_mtime if HLEDGER_PATH.exists() else 0
+    # Keyed on the settings file too, so editing budgets.json takes effect on
+    # the next request instead of waiting for the journal to change.
+    settings_file = settings_path(HLEDGER_PATH)
+    key = (_mtime(HLEDGER_PATH), _mtime(settings_file))
     with _lock:
-        if _cache["mtime"] != mtime:
+        if _cache["mtime"] != key:
             text = HLEDGER_PATH.read_text() if HLEDGER_PATH.exists() else ""
-            _cache["mtime"] = mtime
-            _cache["data"] = build_data(text, CURRENCY)
+            _cache["mtime"] = key
+            _cache["data"] = build_data(
+                text, CURRENCY, load_settings(settings_file), SITE_NAME)
         return _cache["data"]
 
 
