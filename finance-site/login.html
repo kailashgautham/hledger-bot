@@ -83,30 +83,49 @@
     <h1>Tally</h1>
     <p class="sub">Sign in to your dashboard</p>
     <label for="user">Username</label>
-    <input id="user" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    <input id="user" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" autofocus required>
     <label for="pass">Password</label>
     <input id="pass" type="password" autocomplete="current-password" required>
-    <p class="err" id="err">Incorrect username or password.</p>
+    <p class="err" id="err" role="alert" aria-live="assertive"></p>
     <button id="btn" type="submit">Sign in</button>
   </form>
 <script>
 const form = document.getElementById('form');
 const btn = document.getElementById('btn');
 const err = document.getElementById('err');
+const user = document.getElementById('user');
+const pass = document.getElementById('pass');
+
+function fail(message, focusEl) {
+  err.textContent = message;
+  err.classList.add('show');
+  if (focusEl) { focusEl.focus(); focusEl.select && focusEl.select(); }
+}
+
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   err.classList.remove('show');
+  if (!user.value || !pass.value) {
+    fail('Enter both a username and a password.', !user.value ? user : pass);
+    return;
+  }
   btn.disabled = true;
   btn.textContent = 'Signing in…';
   try {
     const res = await fetch('/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user: document.getElementById('user').value, pass: document.getElementById('pass').value }),
+      body: JSON.stringify({ user: user.value, pass: pass.value }),
     });
     if (res.ok) { window.location.href = '/'; return; }
-    err.classList.add('show');
-  } catch (_) { err.classList.add('show'); }
+    // Distinguish "wrong password" from "the server is unhappy" — retrying
+    // your password does nothing about a 500.
+    fail(res.status === 401
+      ? 'Incorrect username or password.'
+      : `Sign in failed (server returned ${res.status}).`, pass);
+  } catch (_) {
+    fail('Can’t reach the server. Check your connection and try again.');
+  }
   btn.disabled = false;
   btn.textContent = 'Sign in';
 });

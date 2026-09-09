@@ -135,34 +135,100 @@
     border: 1px solid var(--glass-border);
     box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow-md);
   }
-  .press { transition: transform .2s var(--ease), box-shadow .2s var(--ease); }
+  .press { transition: transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s var(--ease); }
   .press:active { transform: scale(0.975); }
+  :focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
 
   /* ── Navigation header ─────────────────────────── */
-  .nav { margin-bottom: 30px; }
+  .nav { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 30px; }
+  .nav > div { min-width: 0; }
   .nav-title {
     font-family: var(--font-display);
     font-size: 36px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.05;
   }
+  @media (max-width: 480px) { .nav-title { font-size: 25px; } .nav { margin-bottom: 22px; } }
   .nav-sub { font-size: 13px; font-weight: 500; color: var(--tertiary); margin-top: 6px; }
+  .refresh {
+    margin-left: auto; flex: none; width: 40px; height: 40px; border-radius: 50%;
+    border: 1px solid var(--glass-border); background: var(--glass-fill);
+    -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+    color: var(--secondary); cursor: pointer; display: grid; place-items: center;
+    -webkit-tap-highlight-color: transparent;
+    transition: color .18s var(--ease), transform .2s var(--ease);
+  }
+  .refresh:hover { color: var(--text); }
+  .refresh:active { transform: scale(0.92); }
+  .refresh svg { width: 17px; height: 17px; }
+  .refresh.busy { color: var(--tint); }
+  .refresh.busy svg { animation: spin 900ms linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Skeleton + error banner ───────────────────── */
+  .skel {
+    display: inline-block; min-width: 3.5em; height: 0.85em; border-radius: 6px;
+    color: transparent; vertical-align: middle;
+    background: linear-gradient(90deg, var(--input-fill) 25%, var(--glass-fill-2) 50%, var(--input-fill) 75%);
+    background-size: 220% 100%; animation: shimmer 1.3s linear infinite;
+  }
+  .value .skel { height: 0.7em; min-width: 4.5em; }
+  @keyframes shimmer { to { background-position: -220% 0; } }
+  .banner {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 14px 18px; border-radius: var(--r-lg); margin-bottom: 16px;
+    background: var(--tone-bad); border: 1px solid rgba(255, 69, 58, 0.28);
+    font-size: 14px; font-weight: 500;
+  }
+  .banner .btn { margin-left: auto; padding: 8px 16px; }
+
+  /* ── Toasts ────────────────────────────────────── */
+  .toasts {
+    position: fixed; z-index: 70; left: 50%; transform: translateX(-50%);
+    bottom: calc(96px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: 8px; align-items: center;
+    width: min(440px, calc(100vw - 32px)); pointer-events: none;
+  }
+  .toasts .pop {
+    width: 100%; padding: 12px 16px; border-radius: var(--r-md);
+    font-size: 14px; font-weight: 500; text-align: center;
+    background: var(--tabbar-fill); color: var(--text);
+    -webkit-backdrop-filter: var(--tabbar-blur); backdrop-filter: var(--tabbar-blur);
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow-md);
+    animation: popIn .3s var(--ease);
+  }
+  .toasts .pop.err { background: var(--tone-bad); border-color: rgba(255, 69, 58, 0.32); }
+  .toasts .pop.leaving { animation: popOut .25s var(--ease) forwards; }
+  @keyframes popIn { from { opacity: 0; transform: translateY(12px) scale(.97); } to { opacity: 1; transform: none; } }
+  @keyframes popOut { to { opacity: 0; transform: translateY(8px) scale(.97); } }
 
   /* ── Stats ─────────────────────────────────────── */
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
   @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 480px) { .stats { grid-template-columns: 1fr 1fr; gap: 10px; } }
-  .stat { padding: 18px 20px; border-radius: var(--r-lg); position: relative; overflow: hidden; }
+  .stat {
+    padding: 18px 20px; border-radius: var(--r-lg); position: relative; overflow: hidden;
+    font: inherit; color: inherit; text-align: left; width: 100%; display: block;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button.stat { cursor: pointer; }
+  button.stat:hover { border-color: color-mix(in srgb, var(--tint) 45%, var(--glass-border)); }
   .stat::after {
     content: ''; position: absolute; inset: 0;
     background: radial-gradient(120% 90% at 0% 0%, var(--glass-hi), transparent 45%);
     opacity: .35; pointer-events: none;
   }
-  .stat .label { font-size: 12px; font-weight: 500; color: var(--secondary); letter-spacing: 0.01em; }
+  .stat .label { display: block; font-size: 12px; font-weight: 500; color: var(--secondary); letter-spacing: 0.01em; }
   .stat .value {
-    font-family: var(--font-display);
+    display: block; font-family: var(--font-display);
     font-size: 28px; font-weight: 600; letter-spacing: -0.03em; margin-top: 6px;
     font-variant-numeric: tabular-nums; line-height: 1.1;
   }
-  .stat .hint { font-size: 12px; color: var(--tertiary); margin-top: 4px; }
+  @media (max-width: 480px) { .stat { padding: 15px 16px; } .stat .value { font-size: 24px; } }
+  .stat .hint { display: block; font-size: 12px; color: var(--tertiary); margin-top: 4px; }
   .stat.net .value {
     background: linear-gradient(135deg, var(--tint), var(--purple));
     -webkit-background-clip: text; background-clip: text; color: transparent;
@@ -185,6 +251,10 @@
   .card-title-sub { color: var(--tertiary); font-size: 11px; font-weight: 600; margin-left: 6px; }
   .chart-box { position: relative; height: 260px; min-width: 0; overflow: hidden; }
   canvas { max-width: 100%; }
+  .chart-fallback {
+    display: grid; place-items: center; height: 100%; padding: 20px;
+    text-align: center; font-size: 13px; color: var(--tertiary); line-height: 1.5;
+  }
 
   /* ── Insight cards ─────────────────────────────── */
   .insights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
@@ -268,6 +338,7 @@
     box-shadow: inset 0 1px 0 var(--glass-hi), 0 -20px 60px -20px rgba(0, 0, 0, 0.6);
     animation: sheetUp .4s var(--ease);
   }
+  @media (max-width: 640px) { .sheet { max-height: 88vh; } }
   .grabber { width: 38px; height: 5px; border-radius: 999px; background: var(--tertiary); opacity: .4; margin: 10px auto 2px; flex: none; }
   .sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 12px 22px 10px; }
   .sheet-title { font-family: var(--font-display); font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
@@ -303,6 +374,24 @@
   }
   .search input::placeholder { color: var(--tertiary); }
   .search input:focus { border-color: var(--tint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tint) 25%, transparent); }
+  .search-clear {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    width: 24px; height: 24px; border-radius: 50%; border: none; cursor: pointer;
+    background: var(--glass-fill-2); color: var(--secondary);
+    display: grid; place-items: center; -webkit-tap-highlight-color: transparent;
+  }
+  .search-clear:hover { color: var(--text); }
+  /* type=search brings its own clear button in WebKit; we render our own. */
+  .search input::-webkit-search-cancel-button,
+  .search input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+  .search-clear svg { width: 11px; height: 11px; }
+  @media (max-width: 640px) {
+    .tools { gap: 8px; }
+    .search { flex: 1 0 100%; }
+    .segmented { flex: 1; }
+    .seg { flex: 1; padding: 8px 6px; }
+    .field, .field select { width: 100%; }
+  }
 
   .segmented {
     display: inline-flex; gap: 2px; padding: 3px;
@@ -335,30 +424,46 @@
   .field select:focus { border-color: var(--tint); }
 
   /* ── Transactions ──────────────────────────────── */
-  .txn-wrap { overflow-x: auto; margin: 0 -6px; padding: 0 6px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  thead th {
-    text-align: left; color: var(--tertiary); font-weight: 500;
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
-    padding: 8px; border-bottom: 1px solid var(--sep);
+  .txn-list { display: flex; flex-direction: column; }
+  .txn {
+    display: grid; align-items: start; gap: 3px 14px;
+    grid-template-columns: 104px minmax(0, 1fr) auto auto;
+    grid-template-areas: "date main amt act";
+    padding: 11px 8px; border-radius: 12px; border-bottom: 1px solid var(--sep);
+    font-size: 13px; transition: background .18s var(--ease);
   }
-  tbody td { padding: 10px 8px; border-bottom: 1px solid var(--sep); vertical-align: top; }
-  tbody tr:last-child td { border-bottom: none; }
-  tbody tr { transition: background .18s var(--ease); }
-  tbody tr:hover td { background: var(--input-fill); }
-  td .desc { font-weight: 600; letter-spacing: -0.01em; }
-  td.date { color: var(--tertiary); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .accs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .txn:last-child { border-bottom: none; }
+  .txn:hover { background: var(--input-fill); }
+  .txn-date { grid-area: date; color: var(--tertiary); font-variant-numeric: tabular-nums; white-space: nowrap; padding-top: 1px; }
+  .txn-main { grid-area: main; min-width: 0; }
+  .txn-name { font-weight: 600; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+  .txn-amt { grid-area: amt; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .txn-act { grid-area: act; white-space: nowrap; text-align: right; }
+  .accs { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
   .chip {
     font-size: 11px; font-weight: 500; color: var(--secondary);
     background: var(--input-fill); border: 1px solid var(--glass-border);
     border-radius: 7px; padding: 2px 7px; white-space: nowrap;
   }
-  td.amt { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
   .amt.pos { color: var(--green); }
   .amt.neg { color: var(--red); }
   .amt.transfer { color: var(--tertiary); }
   .empty { color: var(--tertiary); text-align: center; padding: 32px; font-size: 13px; }
+  .txn-more {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    flex-wrap: wrap; padding: 14px 8px 4px; font-size: 12px; color: var(--tertiary);
+  }
+  @media (max-width: 640px) {
+    .txn {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: "main amt" "date act";
+      align-items: center; gap: 6px 12px; padding: 12px 6px;
+    }
+    .txn-main { align-self: start; }
+    .txn-amt { align-self: start; font-size: 14px; }
+    .txn-date { align-self: center; }
+    .txn-act { align-self: center; }
+  }
 
   .mini-btn {
     width: 30px; height: 30px; border-radius: 9px; flex: none;
@@ -369,8 +474,9 @@
     -webkit-tap-highlight-color: transparent;
   }
   .mini-btn:hover { color: var(--text); background: var(--glass-fill-2); }
+  .mini-btn:focus-visible { color: var(--tint); border-color: var(--tint); }
   .mini-btn svg { width: 14px; height: 14px; }
-  td.txn-act { white-space: nowrap; text-align: right; }
+  @media (max-width: 640px) { .mini-btn { width: 34px; height: 34px; margin-left: 4px; } }
   .sheet-err { color: var(--red); }
 
   /* ── Tab bar ───────────────────────────────────── */
@@ -422,6 +528,11 @@
 
   /* ── Action buttons ────────────────────────────── */
   .actions-bar { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+  @media (max-width: 480px) {
+    .actions-bar { gap: 8px; }
+    .actions-bar .btn { flex: 1; justify-content: center; padding: 11px 12px; font-size: 12px; }
+    .actions-bar .btn svg { width: 14px; height: 14px; }
+  }
   .btn {
     display: inline-flex; align-items: center; gap: 8px;
     border: 1px solid var(--glass-border); border-radius: 999px;
@@ -482,7 +593,7 @@
     input[type=date] { font-size: 13px; }
     .sheet-list { padding: 0 16px calc(20px + env(safe-area-inset-bottom)); }
     .sheet-head { padding: 12px 16px 10px; }
-    .wiz-actions { grid-template-columns: 1fr 1fr; gap: 6px; }
+    .wiz-actions, .wiz-secondary { gap: 6px; }
   }
   .kv { display: flex; justify-content: space-between; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--sep); font-size: 13px; }
   .kv:last-child { border-bottom: none; }
@@ -501,7 +612,9 @@
     background: var(--tone-info); border: 1px solid rgba(10,132,255,.25); color: var(--text);
   }
   .sugg .conf { color: var(--tertiary); font-size: 12px; }
-  .wiz-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+  .wiz-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .wiz-secondary { display: grid; grid-template-columns: repeat(auto-fit, minmax(94px, 1fr)); gap: 8px; }
+  .wiz-secondary .btn { padding: 11px 8px; justify-content: center; }
   .acc-list { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; }
   .acc-item {
     display: flex; justify-content: space-between; align-items: center; gap: 10px;
@@ -529,16 +642,26 @@
 
 <main>
   <header class="nav">
-    <h1 class="nav-title" id="greeting"></h1>
-    <p class="nav-sub" id="asof"></p>
+    <div>
+      <h1 class="nav-title" id="greeting"></h1>
+      <p class="nav-sub" id="asof"><span class="skel">loading</span></p>
+    </div>
+    <button class="refresh" id="btn-refresh" title="Refresh" aria-label="Refresh data">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+    </button>
   </header>
+
+  <div class="banner" id="load-error" hidden role="alert">
+    <span id="load-error-msg">Couldn’t load your data.</span>
+    <button class="btn ghost" id="load-retry">Try again</button>
+  </div>
 
   <div class="actions-bar">
     <button class="btn primary" id="btn-import">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>
       Import statement
     </button>
-    <button class="btn primary" id="btn-add">
+    <button class="btn ghost" id="btn-add">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14m-7-7h14"/></svg>
       Add transaction
     </button>
@@ -551,10 +674,10 @@
   <!-- Overview -->
   <section class="view" id="view-overview">
     <div class="stats">
-      <div class="stat glass press stagger"><div class="label">Net worth</div><div class="value" id="net-worth">—</div><div class="hint" id="net-worth-hint"></div></div>
-      <div class="stat glass press stagger"><div class="label">Assets</div><div class="value" id="assets">—</div></div>
-      <div class="stat glass press stagger"><div class="label">Liabilities</div><div class="value" id="liabilities">—</div></div>
-      <div class="stat glass press stagger"><div class="label">Spent this month</div><div class="value" id="month-net">—</div><div class="hint" id="month-hint"></div></div>
+      <div class="stat glass net stagger"><div class="label">Net worth</div><div class="value" id="net-worth"><span class="skel">0000</span></div><div class="hint" id="net-worth-hint"></div></div>
+      <button class="stat glass press stagger" data-jump="accounts"><span class="label">Assets</span><span class="value" id="assets"><span class="skel">0000</span></span></button>
+      <button class="stat glass press stagger" data-jump="accounts"><span class="label">Liabilities</span><span class="value" id="liabilities"><span class="skel">0000</span></span></button>
+      <button class="stat glass press stagger" data-jump="month-expenses"><span class="label">Spent this month</span><span class="value" id="month-net"><span class="skel">0000</span></span><span class="hint" id="month-hint"></span></button>
     </div>
 
     <div class="section-label"><span>Budgets</span><span class="sub" id="budget-month"></span></div>
@@ -568,7 +691,7 @@
     </div>
 
     <div class="split">
-      <div class="card glass">
+      <div class="card glass" id="accounts-card" style="scroll-margin-top:20px">
         <div class="card-title">Accounts</div>
         <div class="acct-group" id="assets-group"><div class="group-head">Assets</div></div>
         <div class="acct-group" id="liab-group"><div class="group-head">Liabilities</div></div>
@@ -593,34 +716,40 @@
 
   <!-- Activity -->
   <section class="view" id="view-activity" hidden>
-    <div class="section-label"><span>Transactions</span></div>
+    <div class="section-label"><span>Transactions</span><span class="sub" id="txn-summary" aria-live="polite"></span></div>
     <div class="card glass">
       <div class="tools">
         <div class="search">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          <input id="search" type="text" placeholder="Search" autocomplete="off">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="search" type="search" placeholder="Search descriptions and accounts" autocomplete="off" aria-label="Search transactions">
+          <button class="search-clear" id="search-clear" type="button" aria-label="Clear search" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
         </div>
-        <div class="segmented" id="typeFilter">
-          <button class="seg active" data-type="all">All</button>
-          <button class="seg" data-type="income">Income</button>
-          <button class="seg" data-type="expense">Expenses</button>
-          <button class="seg" data-type="transfer">Transfers</button>
+        <div class="segmented" id="typeFilter" role="group" aria-label="Filter by type">
+          <button class="seg active" data-type="all" aria-pressed="true">All</button>
+          <button class="seg" data-type="income" aria-pressed="false">Income</button>
+          <button class="seg" data-type="expense" aria-pressed="false">Expenses</button>
+          <button class="seg" data-type="transfer" aria-pressed="false">Transfers</button>
         </div>
         <div class="field">
-          <select id="monthFilter"><option value="all">All months</option></select>
+          <select id="monthFilter" aria-label="Filter by month"><option value="all">All months</option></select>
         </div>
       </div>
-      <div class="txn-wrap"><table>
-        <thead><tr><th>Date</th><th>Description</th><th class="col-accs">Accounts</th><th style="text-align:right">Amount</th><th></th></tr></thead>
-        <tbody id="txn-body"></tbody>
-      </table></div>
-      <div class="empty" id="txn-empty" hidden>No transactions match.</div>
+      <div class="txn-list" id="txn-body"></div>
+      <div class="empty" id="txn-empty" hidden>No transactions match these filters.</div>
+      <div class="txn-more" id="txn-more" hidden>
+        <span id="txn-more-count"></span>
+        <button class="btn ghost" id="txn-more-btn">Show more</button>
+      </div>
     </div>
   </section>
 </main>
 
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
 <div class="sheet-backdrop" id="sheet" hidden>
-  <div class="sheet">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
     <div class="grabber"></div>
     <div class="sheet-head">
       <div>
@@ -638,7 +767,7 @@
 <input type="file" id="import-file" accept="image/*,.pdf" multiple hidden>
 
 <div class="sheet-backdrop" id="wizard" hidden>
-  <div class="sheet">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="wizard-title">
     <div class="grabber"></div>
     <div class="sheet-head">
       <div>
@@ -653,8 +782,8 @@
   </div>
 </div>
 
-<nav class="tabbar" id="tabbar">
-  <button class="tab active" data-tab="overview">
+<nav class="tabbar" id="tabbar" aria-label="Sections">
+  <button class="tab active" data-tab="overview" aria-current="page">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10H12V2Z"/><path d="M13 2.1A10 10 0 0 1 21.9 11H13V2.1Z" opacity=".55"/></svg>
     <span>Overview</span>
   </button>
@@ -670,16 +799,50 @@
 
 <script>
 const cur = new Intl.NumberFormat('en-SG', { style: 'currency', currency: 'SGD', minimumFractionDigits: 2 });
-const state = { data: null, month: 'all', type: 'all', q: '' };
+const PAGE_SIZE = 60;
+const STALE_MS = 60 * 1000;
+const state = { data: null, month: 'all', type: 'all', q: '', limit: PAGE_SIZE, loadedAt: 0 };
 let flowChart, catChart;
 
+const $ = id => document.getElementById(id);
 function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
-async function load() {
-  const res = await fetch('/api/data');
-  if (!res.ok) throw new Error('data failed');
-  state.data = await res.json();
-  render();
+/* Never let one broken section (e.g. a blocked Chart.js CDN) take the page down. */
+function safe(fn) {
+  try { fn(); } catch (err) { console.error(fn.name || 'render step', err); }
+}
+
+async function load({ silent = false } = {}) {
+  const btn = $('btn-refresh');
+  btn.classList.add('busy');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/data', { headers: { 'Accept': 'application/json' } });
+    if (res.redirected && /\/login/.test(res.url)) { window.location.href = '/login'; return; }
+    if (res.status === 401) { window.location.href = '/login'; return; }
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    state.data = await res.json();
+    state.loadedAt = Date.now();
+    $('load-error').hidden = true;
+    render();
+  } catch (err) {
+    if (!silent || !state.data) showLoadError(err);
+    throw err;
+  } finally {
+    btn.classList.remove('busy');
+    btn.disabled = false;
+  }
+}
+
+function showLoadError(err) {
+  $('load-error-msg').textContent = state.data
+    ? `Couldn’t refresh — showing data from ${fmtTime(state.loadedAt)}.`
+    : `Couldn’t load your data. ${err && err.message ? err.message + '.' : ''}`;
+  $('load-error').hidden = false;
+  if (!state.data) {
+    document.querySelectorAll('.stat .value .skel').forEach(s => { s.classList.remove('skel'); s.textContent = '—'; });
+    $('asof').textContent = 'Tally';
+  }
 }
 
 function greeting() {
@@ -694,25 +857,75 @@ function fmtDate(iso) {
   return new Intl.DateTimeFormat('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }).format(d);
 }
 
+/* Compact date for list rows: drop the year when it's the current one. */
+function fmtDateShort(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return iso;
+  const opts = d.getFullYear() === new Date().getFullYear()
+    ? { day: 'numeric', month: 'short' }
+    : { day: 'numeric', month: 'short', year: '2-digit' };
+  return new Intl.DateTimeFormat('en-SG', opts).format(d);
+}
+
+/* "2025-06" → "June 2025" (or "Jun 25" when short). */
+function fmtMonth(key, short) {
+  const d = new Date(key + '-01T00:00:00');
+  if (isNaN(d)) return key;
+  return new Intl.DateTimeFormat('en-SG', short
+    ? { month: 'short', year: '2-digit' }
+    : { month: 'long', year: 'numeric' }).format(d);
+}
+
+function fmtTime(ms) {
+  return new Intl.DateTimeFormat('en-SG', { hour: 'numeric', minute: '2-digit' }).format(new Date(ms));
+}
+
 function render() {
   const d = state.data;
-  document.getElementById('greeting').textContent = greeting();
-  document.getElementById('asof').textContent = 'Tally · as of ' + fmtDate(d.as_of);
-  document.getElementById('net-worth').textContent = cur.format(d.net_worth);
-  document.getElementById('assets').textContent = cur.format(d.assets);
-  document.getElementById('liabilities').textContent = cur.format(d.liabilities);
-  document.getElementById('month-net').textContent = cur.format(d.month.expenses);
-  document.getElementById('month-hint').textContent = 'spent ' + cur.format(d.month.expenses) + ' · earned ' + cur.format(d.month.income) + ' so far';
-  document.getElementById('net-worth-hint').textContent = d.assets + ' assets · ' + d.liabilities + ' liabilities';
+  $('greeting').textContent = greeting();
+  $('asof').textContent = 'Tally · as of ' + fmtDate(d.as_of);
+  $('net-worth').textContent = cur.format(d.net_worth);
+  $('assets').textContent = cur.format(d.assets);
+  $('liabilities').textContent = cur.format(d.liabilities);
+  $('month-net').textContent = cur.format(d.month.expenses);
+  $('month-hint').textContent = 'earned ' + cur.format(d.month.income) + ' so far';
+  const nAssets = d.accounts.assets.length, nLiab = d.accounts.liabilities.length;
+  $('net-worth-hint').textContent =
+    `${nAssets} asset account${nAssets === 1 ? '' : 's'} · ${nLiab} liabilit${nLiab === 1 ? 'y' : 'ies'}`;
 
-  renderFlow();
-  renderCats();
-  renderBudgets();
-  renderAccounts();
-  renderIncomeCats();
-  renderInsights();
-  renderMonths();
-  renderTxns();
+  // Data-driven sections first so a chart failure can't hide them.
+  safe(renderBudgets);
+  safe(renderAccounts);
+  safe(renderIncomeCats);
+  safe(renderInsights);
+  safe(renderMonths);
+  safe(renderTxns);
+  safe(renderFlow);
+  safe(renderCats);
+}
+
+/* Show a message in place of a chart without destroying the canvas, so the
+   chart can come back on a later render (e.g. once there is data to plot). */
+function chartsUnavailable(canvasId, message) {
+  const canvas = $(canvasId);
+  if (!canvas) return;
+  const box = canvas.parentElement;
+  canvas.hidden = true;
+  let note = box.querySelector('.chart-fallback');
+  if (!note) {
+    note = document.createElement('div');
+    note.className = 'chart-fallback';
+    box.appendChild(note);
+  }
+  note.textContent = message;
+}
+
+function chartsAvailable(canvasId) {
+  const canvas = $(canvasId);
+  if (!canvas) return;
+  canvas.hidden = false;
+  const note = canvas.parentElement.querySelector('.chart-fallback');
+  if (note) note.remove();
 }
 
 function renderBudgets() {
@@ -766,13 +979,14 @@ function openSheet(acct) {
       <div class="sheet-amt ${t.amount < 0 ? 'neg' : 'pos'}">${t.amount < 0 ? '−' : '+'}${cur.format(Math.abs(t.amount))}</div>
     </div>`;
   }).join('') : '<div class="empty">No transactions.</div>';
-  document.body.style.overflow = 'hidden';
-  document.getElementById('sheet').hidden = false;
+  openSheetEl();
 }
 
 function closeSheet() {
-  document.getElementById('sheet').hidden = true;
-  document.body.style.overflow = '';
+  if ($('sheet').hidden) return;
+  $('sheet').hidden = true;
+  unlockScroll();
+  restoreFocus('sheet');
 }
 
 function renderInsights() {
@@ -787,11 +1001,15 @@ function renderInsights() {
 }
 
 function renderFlow() {
-  const labels = state.data.monthly.map(m => m.month);
-  const income = state.data.monthly.map(m => m.income);
-  const expenses = state.data.monthly.map(m => m.expenses);
+  if (typeof Chart === 'undefined') return chartsUnavailable('flowChart', 'Charts couldn’t load — the numbers below are still up to date.');
+  const months = state.data.monthly;
+  if (!months.length) return chartsUnavailable('flowChart', 'No monthly history yet.');
+  chartsAvailable('flowChart');
+  const labels = months.map(m => fmtMonth(m.month, true));
+  const income = months.map(m => m.income);
+  const expenses = months.map(m => m.expenses);
   const tick = cssVar('--secondary'), grid = cssVar('--chart-grid');
-  const ctx = document.getElementById('flowChart');
+  const ctx = $('flowChart');
   if (flowChart) flowChart.destroy();
   flowChart = new Chart(ctx, {
     type: 'bar',
@@ -801,16 +1019,29 @@ function renderFlow() {
     ]},
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: tick, usePointStyle: true, pointStyleWidth: 8, boxHeight: 8 } } },
+      plugins: {
+        legend: { labels: { color: tick, usePointStyle: true, pointStyleWidth: 8, boxHeight: 8 } },
+        tooltip: { callbacks: { label: c => ' ' + c.dataset.label + ': ' + cur.format(c.parsed.y) } },
+      },
       scales: {
-        x: { ticks: { color: tick }, grid: { color: 'transparent' }, border: { color: grid } },
-        y: { ticks: { color: tick, callback: v => 'SGD ' + v }, grid: { color: grid }, border: { display: false } },
+        x: { ticks: { color: tick, maxRotation: 0, autoSkipPadding: 12 }, grid: { color: 'transparent' }, border: { color: grid } },
+        y: { ticks: { color: tick, callback: v => compactAmount(v) }, grid: { color: grid }, border: { display: false } },
       },
     },
   });
 }
 
+/* Axis labels: "SGD 1500" is noisy; "1.5k" reads at a glance. */
+function compactAmount(v) {
+  const n = Math.abs(v);
+  if (n >= 1000) return (v / 1000).toFixed(n % 1000 === 0 ? 0 : 1) + 'k';
+  return String(v);
+}
+
 function renderCats() {
+  if (typeof Chart === 'undefined') return chartsUnavailable('catChart', 'Charts couldn’t load — see Budgets above for this month’s categories.');
+  if (!state.data.expense_categories.length) return chartsUnavailable('catChart', 'No spending recorded yet.');
+  chartsAvailable('catChart');
   const cats = state.data.expense_categories.slice(0, 9);
   const other = state.data.expense_categories.slice(9).reduce((s, c) => s + c.amount, 0);
   const labelMap = {};
@@ -820,7 +1051,7 @@ function renderCats() {
   const values = cats.map(c => c.amount);
   if (other > 0) { labels.push('Other'); catKeys.push(null); values.push(Math.round(other * 100) / 100); }
   const tick = cssVar('--secondary');
-  const ctx = document.getElementById('catChart');
+  const ctx = $('catChart');
   if (catChart) catChart.destroy();
   catChart = new Chart(ctx, {
     type: 'doughnut',
@@ -858,50 +1089,125 @@ function renderIncomeCats() {
 }
 
 function renderMonths() {
-  const sel = document.getElementById('monthFilter');
+  const sel = $('monthFilter');
   const val = sel.value;
   sel.innerHTML = '<option value="all">All months</option>' + state.data.monthly.slice().reverse().map(m =>
-    `<option value="${m.month}">${m.month}</option>`).join('');
-  sel.value = val;
+    `<option value="${m.month}">${esc(fmtMonth(m.month))}</option>`).join('');
+  sel.value = val || 'all';
+  if (!sel.value) { sel.value = 'all'; state.month = 'all'; }
 }
 
-function renderTxns() {
+function filteredTxns() {
   const { data, month, type, q } = state;
-  const ql = q.toLowerCase();
-  const rows = data.transactions.filter(t => {
+  const ql = q.trim().toLowerCase();
+  return data.transactions.filter(t => {
     if (month !== 'all' && !t.date.startsWith(month)) return false;
     if (type !== 'all' && t.type !== type) return false;
     if (ql && !(t.description.toLowerCase().includes(ql) || t.accounts.some(a => a.toLowerCase().includes(ql)))) return false;
     return true;
   });
+}
+
+/* ── Account pickers ──────────────────────────────── */
+const ACCOUNT_GROUPS = [
+  ['expenses:', 'Expenses'], ['income:', 'Income'],
+  ['assets:', 'Accounts'], ['liabilities:', 'Cards & loans'],
+];
+
+/* A flat list of every account is hard to scan; group it by top-level type. */
+function accountOptions(accounts) {
+  const seen = new Set();
+  let html = '';
+  for (const [prefix, label] of ACCOUNT_GROUPS) {
+    const group = accounts.filter(a => a.startsWith(prefix));
+    group.forEach(a => seen.add(a));
+    if (group.length) {
+      html += `<optgroup label="${esc(label)}">`
+        + group.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('')
+        + '</optgroup>';
+    }
+  }
+  const rest = accounts.filter(a => !seen.has(a));
+  if (rest.length) {
+    html += '<optgroup label="Other">'
+      + rest.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('')
+      + '</optgroup>';
+  }
+  return html;
+}
+
+/* Money comes out of a card or bank account, never out of an expense
+   category — so don't let the offset default to whatever sorts first. */
+function defaultOffset(accounts) {
+  return accounts.find(a => a.startsWith('liabilities:'))
+    || accounts.find(a => a.startsWith('assets:'))
+    || accounts[0] || '';
+}
+
+function defaultCategory(accounts) {
+  return accounts.find(a => a.startsWith('expenses:')) || accounts[0] || '';
+}
+
+/* Chips repeat the same top-level prefix on every row; the leaf is what
+   distinguishes them. Full path stays available on hover. */
+function shortAccount(a) {
+  const parts = String(a).split(':');
+  return parts.length > 1 ? parts.slice(1).join(':') : a;
+}
+
+const ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>';
+const ICON_SPLIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M8 15l2.5 2.5L16 13" opacity=".6"/></svg>';
+const ICON_DELETE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg>';
+
+function renderTxns() {
+  const rows = filteredTxns();
   state.filtered = rows;
-  const body = document.getElementById('txn-body');
-  const empty = document.getElementById('txn-empty');
-  empty.hidden = rows.length > 0;
-  body.innerHTML = rows.slice(0, 200).map((t, i) => {
+  const shown = Math.min(state.limit, rows.length);
+  const body = $('txn-body');
+  const total = state.data.transactions.length;
+
+  $('txn-empty').hidden = rows.length > 0;
+  $('txn-summary').textContent = rows.length === total
+    ? `${total} total`
+    : `${rows.length} of ${total}`;
+
+  body.innerHTML = rows.slice(0, shown).map((t, i) => {
     const cls = t.type === 'transfer' ? 'transfer' : (t.amount > 0 ? 'pos' : (t.amount < 0 ? 'neg' : 'transfer'));
     const sign = t.type === 'transfer' ? '' : (t.amount >= 0 ? '+' : '−');
-    const amortize = t.type === 'expense'
-      ? `<button class="mini-btn" data-i="${i}" data-act="amortize" title="Split over months"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/><path d="M8 15l2.5 2.5L16 13" opacity=".6"/></svg></button>`
-      : '';
-    return `<tr>
-      <td class="date">${t.date}</td>
-      <td class="desc">${esc(t.description)}</td>
-      <td class="col-accs"><div class="accs">${t.accounts.map(a => `<span class="chip">${esc(a)}</span>`).join('')}</div></td>
-      <td class="amt ${cls}">${sign}${cur.format(Math.abs(t.amount))}</td>
-      <td class="txn-act">
-        <button class="mini-btn" data-i="${i}" data-act="edit" title="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
-        ${amortize}
-        <button class="mini-btn" data-i="${i}" data-act="delete" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg></button>
-      </td>
-    </tr>`;
+    const name = esc(t.description || '(no description)');
+    const btn = (act, label, icon) =>
+      `<button class="mini-btn" data-i="${i}" data-act="${act}" title="${label} ${name}" aria-label="${label} ${name}">${icon}</button>`;
+    return `<div class="txn">
+      <div class="txn-date" title="${esc(t.date)}">${esc(fmtDateShort(t.date))}</div>
+      <div class="txn-main">
+        <div class="txn-name">${name}</div>
+        <div class="accs">${t.accounts.map(a => `<span class="chip" title="${esc(a)}">${esc(shortAccount(a))}</span>`).join('')}</div>
+      </div>
+      <div class="txn-amt amt ${cls}">${sign}${cur.format(Math.abs(t.amount))}</div>
+      <div class="txn-act">
+        ${btn('edit', 'Edit', ICON_EDIT)}
+        ${t.type === 'expense' ? btn('amortize', 'Split over months', ICON_SPLIT) : ''}
+        ${btn('delete', 'Delete', ICON_DELETE)}
+      </div>
+    </div>`;
   }).join('');
+
+  const more = $('txn-more');
+  more.hidden = rows.length <= shown;
+  if (!more.hidden) {
+    $('txn-more-count').textContent = `Showing ${shown} of ${rows.length}`;
+    $('txn-more-btn').textContent = `Show ${Math.min(PAGE_SIZE, rows.length - shown)} more`;
+  }
 }
 
 async function openEditSheet(t) {
   let accounts = [];
   try { accounts = (await api('/api/accounts')).accounts || []; } catch (_) {}
-  const allOpts = accounts.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+  // The journal may reference accounts the list doesn't know about; keep them
+  // selectable rather than silently rewriting the posting on save.
+  const known = new Set(accounts);
+  const options = accounts.concat(t.accounts.filter(a => a && !known.has(a)));
+  const allOpts = accountOptions(options);
   const post1 = t.accounts[0] || '';
   const post2 = t.accounts[1] || '';
   const isTransfer = t.type === 'transfer';
@@ -947,6 +1253,7 @@ async function openEditSheet(t) {
       });
       if (!r.success) throw new Error(r.message || 'Edit failed');
       closeSheet();
+      toast('Transaction updated');
       load().catch(() => {});
     } catch (e) {
       $('ed-save').disabled = false;
@@ -1008,6 +1315,7 @@ function openAmortizeSheet(t) {
       });
       if (!r.success) throw new Error(r.message || 'Split failed');
       closeSheet();
+      toast(`Split over ${months} months`);
       load().catch(() => {});
     } catch (e) {
       $('am-save').disabled = false;
@@ -1019,86 +1327,296 @@ function openAmortizeSheet(t) {
   });
 }
 
+const lastFocus = {};
 function openSheetEl() {
-  document.body.style.overflow = 'hidden';
-  document.getElementById('sheet').hidden = false;
+  if ($('sheet').hidden) {
+    lastFocus.sheet = document.activeElement;
+    lockScroll();
+    $('sheet').hidden = false;
+  }
+  $('sheet-list').scrollTop = 0;
+  focusFirst($('sheet'));
 }
 
-function esc(s) { return s.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+/* Land focus on something useful, not the close button. */
+function focusFirst(dialog) {
+  requestAnimationFrame(() => {
+    const target = dialog.querySelector('.sheet-list input:not([type=hidden]), .sheet-list select, .sheet-list button');
+    if (target) target.focus({ preventScroll: true });
+  });
+}
 
-document.getElementById('search').addEventListener('input', e => { state.q = e.target.value; renderTxns(); });
-document.querySelectorAll('#typeFilter .seg').forEach(b => b.addEventListener('click', () => {
-  document.querySelectorAll('#typeFilter .seg').forEach(x => x.classList.toggle('active', x === b));
-  state.type = b.dataset.type; renderTxns();
+/* Enter in a text field submits the open sheet, like a real form would.
+   Registered once on the container, which outlives each sheet's contents. */
+['sheet-list', 'wizard-body'].forEach(id => $(id).addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.target.tagName !== 'INPUT' || e.target.type === 'date') return;
+  const btn = $(id).querySelector('.btn.primary:not([disabled])');
+  if (btn) { e.preventDefault(); btn.click(); }
 }));
-document.getElementById('monthFilter').addEventListener('change', e => { state.month = e.target.value; renderTxns(); });
-document.getElementById('budget-grid').addEventListener('click', e => {
-  const row = e.target.closest('.budget-row');
-  if (row) openSheet(row.dataset.acct);
+
+function restoreFocus(key) {
+  const el = lastFocus[key];
+  lastFocus[key] = null;
+  if (el && document.contains(el)) el.focus({ preventScroll: true });
+}
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+/* ── Toasts ───────────────────────────────────────── */
+function toast(message, kind) {
+  const pop = document.createElement('div');
+  pop.className = 'pop' + (kind === 'err' ? ' err' : '');
+  pop.setAttribute('role', kind === 'err' ? 'alert' : 'status');
+  pop.textContent = message;
+  $('toasts').appendChild(pop);
+  setTimeout(() => {
+    pop.classList.add('leaving');
+    pop.addEventListener('animationend', () => pop.remove(), { once: true });
+    setTimeout(() => pop.remove(), 600);
+  }, kind === 'err' ? 5000 : 3000);
+}
+
+/* ── Filters ──────────────────────────────────────── */
+let searchTimer;
+$('search').addEventListener('input', e => {
+  const v = e.target.value;
+  $('search-clear').hidden = !v;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    state.q = v;
+    state.limit = PAGE_SIZE;
+    if (state.data) renderTxns();
+  }, 120);
 });
-document.getElementById('txn-body').addEventListener('click', e => {
+$('search-clear').addEventListener('click', () => {
+  const input = $('search');
+  input.value = '';
+  $('search-clear').hidden = true;
+  state.q = ''; state.limit = PAGE_SIZE;
+  if (state.data) renderTxns();
+  input.focus();
+});
+document.querySelectorAll('#typeFilter .seg').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#typeFilter .seg').forEach(x => {
+    const on = x === b;
+    x.classList.toggle('active', on);
+    x.setAttribute('aria-pressed', String(on));
+  });
+  state.type = b.dataset.type;
+  state.limit = PAGE_SIZE;
+  if (state.data) renderTxns();
+}));
+$('monthFilter').addEventListener('change', e => {
+  state.month = e.target.value;
+  state.limit = PAGE_SIZE;
+  if (state.data) renderTxns();
+});
+$('txn-more-btn').addEventListener('click', () => {
+  state.limit += PAGE_SIZE;
+  renderTxns();
+});
+
+$('budget-grid').addEventListener('click', e => {
+  const row = e.target.closest('.budget-row');
+  if (row && row.dataset.acct) openSheet(row.dataset.acct);
+});
+
+/* ── Transaction row actions ──────────────────────── */
+$('txn-body').addEventListener('click', e => {
   const btn = e.target.closest('.mini-btn');
   if (!btn) return;
   const t = (state.filtered || [])[+btn.dataset.i];
   if (!t) return;
   if (btn.dataset.act === 'edit') openEditSheet(t);
   else if (btn.dataset.act === 'amortize') openAmortizeSheet(t);
-  else if (btn.dataset.act === 'delete') {
-    if (!confirm(`Delete “${t.description}” on ${t.date}? This saves immediately.`)) return;
-    (async () => {
-      try {
-        const r = await api('/api/txn/delete', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ line_no: t.line_no, date: t.date, description: t.description, amount: Math.abs(t.amount) }),
-        });
-        if (!r.success) throw new Error(r.message || 'Delete failed');
-        load().catch(() => {});
-      } catch (e) { alert(e.message); }
-    })();
+  else if (btn.dataset.act === 'delete') openDeleteSheet(t);
+});
+
+function openDeleteSheet(t) {
+  $('sheet-title').textContent = 'Delete transaction?';
+  $('sheet-sub').textContent = 'This writes to your journal straight away.';
+  $('sheet-list').innerHTML = `
+    <div class="wiz">
+      <div class="kv"><span class="k">Description</span><span class="v">${esc(t.description)}</span></div>
+      <div class="kv"><span class="k">Date</span><span class="v">${esc(fmtDate(t.date))}</span></div>
+      <div class="kv"><span class="k">Amount</span><span class="v">${cur.format(Math.abs(t.amount))}</span></div>
+      <p class="hint sheet-err" id="del-err" hidden></p>
+      <button class="btn danger full" id="del-ok">Delete</button>
+      <button class="btn ghost full" data-close="1">Keep it</button>
+    </div>`;
+  openSheetEl();
+  $('del-ok').addEventListener('click', async () => {
+    $('del-ok').disabled = true;
+    $('del-ok').textContent = 'Deleting…';
+    try {
+      const r = await api('/api/txn/delete', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ line_no: t.line_no, date: t.date, description: t.description, amount: Math.abs(t.amount) }),
+      });
+      if (!r.success) throw new Error(r.message || 'Delete failed');
+      closeSheet();
+      toast('Transaction deleted');
+      load().catch(() => {});
+    } catch (err) {
+      $('del-ok').disabled = false;
+      $('del-ok').textContent = 'Delete';
+      const el = $('del-err');
+      el.textContent = err.message;
+      el.hidden = false;
+    }
+  });
+}
+
+/* ── Dialog plumbing ──────────────────────────────── */
+$('sheet').addEventListener('click', e => {
+  if (e.target === $('sheet') || e.target.closest('.sheet-close') || e.target.closest('[data-close]')) closeSheet();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (!$('wizard').hidden) closeWizard();
+    else if (!$('sheet').hidden) closeSheet();
+    return;
+  }
+  // Keep focus inside whichever dialog is open.
+  if (e.key === 'Tab') {
+    const dialog = !$('wizard').hidden ? $('wizard') : (!$('sheet').hidden ? $('sheet') : null);
+    if (dialog) trapFocus(e, dialog);
+    return;
+  }
+  // "/" jumps to search, the way most list UIs behave.
+  if (e.key === '/' && !/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)
+      && $('wizard').hidden && $('sheet').hidden) {
+    e.preventDefault();
+    showTab('activity');
+    $('search').focus();
   }
 });
-document.getElementById('sheet').addEventListener('click', e => {
-  if (e.target === document.getElementById('sheet') || e.target.closest('.sheet-close') || e.target.closest('[data-close]')) closeSheet();
-});
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSheet(); closeWizard(); } });
 
-document.querySelectorAll('#tabbar .tab').forEach(t => t.addEventListener('click', () => {
-  document.querySelectorAll('#tabbar .tab').forEach(x => x.classList.toggle('active', x === t));
-  ['overview', 'insights', 'activity'].forEach(v => {
-    document.getElementById('view-' + v).hidden = v !== t.dataset.tab;
+const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]';
+function trapFocus(e, dialog) {
+  const items = [...dialog.querySelectorAll(FOCUSABLE)].filter(el => el.offsetParent !== null);
+  if (!items.length) return;
+  const first = items[0], last = items[items.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  else if (!dialog.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+}
+
+/* Nested dialogs each hold a lock, so closing one doesn't unfreeze the page. */
+let scrollLocks = 0;
+function lockScroll() { if (scrollLocks++ === 0) document.body.style.overflow = 'hidden'; }
+function unlockScroll() { if (--scrollLocks <= 0) { scrollLocks = 0; document.body.style.overflow = ''; } }
+
+/* ── Tabs (hash-routed so refresh and Back work) ──── */
+const TABS = ['overview', 'insights', 'activity'];
+function showTab(name, { push = true } = {}) {
+  if (!TABS.includes(name)) name = 'overview';
+  document.querySelectorAll('#tabbar .tab').forEach(x => {
+    const on = x.dataset.tab === name;
+    x.classList.toggle('active', on);
+    if (on) x.setAttribute('aria-current', 'page');
+    else x.removeAttribute('aria-current');
   });
+  TABS.forEach(v => { $('view-' + v).hidden = v !== name; });
+  if (push && location.hash.slice(1) !== name) history.pushState(null, '', '#' + name);
+  window.scrollTo({ top: 0, behavior: 'auto' });
+}
+document.querySelectorAll('#tabbar .tab').forEach(t =>
+  t.addEventListener('click', () => showTab(t.dataset.tab)));
+window.addEventListener('hashchange', () => showTab(location.hash.slice(1) || 'overview', { push: false }));
+
+/* ── Stat shortcuts ───────────────────────────────── */
+document.querySelectorAll('.stat[data-jump]').forEach(el => el.addEventListener('click', () => {
+  if (el.dataset.jump === 'accounts') {
+    $('accounts-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } else if (el.dataset.jump === 'month-expenses' && state.data) {
+    state.month = state.data.month.key;
+    state.type = 'expense';
+    state.limit = PAGE_SIZE;
+    $('monthFilter').value = state.month;
+    document.querySelectorAll('#typeFilter .seg').forEach(x => {
+      const on = x.dataset.type === 'expense';
+      x.classList.toggle('active', on);
+      x.setAttribute('aria-pressed', String(on));
+    });
+    renderTxns();
+    showTab('activity');
+  }
 }));
 
-matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => { renderFlow(); renderCats(); });
+matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+  if (!state.data) return;
+  safe(renderFlow); safe(renderCats);
+});
+
+/* ── Keeping data fresh ───────────────────────────── */
+$('btn-refresh').addEventListener('click', () => {
+  load().then(() => toast('Up to date')).catch(() => {});
+});
+$('load-retry').addEventListener('click', () => { load().catch(() => {}); });
+
+/* The bot writes to the journal from Telegram, so a tab left open goes stale. */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && state.data && Date.now() - state.loadedAt > STALE_MS) {
+    load({ silent: true }).catch(() => {});
+  }
+});
 
 // ── Import & Reconcile wizard ─────────────────────
-const wiz = { mode: null, wizard_id: null, cardName: '', idx: 0, total: 0, current: null, accounts: [] };
-const $ = id => document.getElementById(id);
+const wiz = { mode: null, wizard_id: null, cardName: '', idx: 0, total: 0, current: null, accounts: [], queue: [], fileIdx: 0, fileTotal: 0 };
 
 function openWizard(title, sub) {
   $('wizard-title').textContent = title;
   $('wizard-sub').textContent = sub || '';
-  document.body.style.overflow = 'hidden';
-  $('wizard').hidden = false;
+  if ($('wizard').hidden) {
+    lastFocus.wizard = document.activeElement;
+    lockScroll();
+    $('wizard').hidden = false;
+  }
+  $('wizard-body').scrollTop = 0;
 }
 
 function closeWizard() {
+  if ($('wizard').hidden) return;
   $('wizard').hidden = true;
-  document.body.style.overflow = '';
+  unlockScroll();
+  restoreFocus('wizard');
   wiz.mode = null; wiz.wizard_id = null; wiz.current = null;
+  wiz.queue = []; wiz.fileIdx = 0; wiz.fileTotal = 0;
 }
 
 async function api(url, opts) {
   const res = await fetch(url, opts);
+  if (res.status === 401 || (res.redirected && /\/login/.test(res.url))) {
+    window.location.href = '/login';
+    throw new Error('Your session expired — signing you back in.');
+  }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'Request failed');
+  if (!res.ok) throw new Error(data.message || `Request failed (${res.status})`);
   return data;
 }
 
 function renderToast(type, message) {
-  const body = $('wizard-body');
-  body.innerHTML = `<div class="wiz"><div class="toast ${type === 'err' ? 'err' : 'ok'}">${esc(message)}</div>
-    <button class="btn ghost full" data-close="1">Close</button></div>`;
+  $('wizard-body').innerHTML = `<div class="wiz">
+    <div class="toast ${type === 'err' ? 'err' : 'ok'}">${esc(message)}</div>
+    ${nextFileButton()}
+    <button class="btn ghost full" data-close="1">Close</button>
+  </div>`;
+  wireNextFile();
+}
+
+/* The server parses one file per request, so several picked files are worked
+   through one after another rather than silently dropped. */
+function nextFileButton() {
+  if (!wiz.queue.length) return '';
+  return `<button class="btn primary full" id="wiz-next-file">Next file (${wiz.fileIdx + 1} of ${wiz.fileTotal})</button>`;
+}
+
+function wireNextFile() {
+  const btn = $('wiz-next-file');
+  if (btn) btn.addEventListener('click', nextFile);
 }
 
 // --- Import ---
@@ -1112,26 +1630,29 @@ $('btn-import').addEventListener('click', () => {
 $('btn-add').addEventListener('click', async () => {
   let accounts = [];
   try { accounts = (await api('/api/accounts')).accounts || []; } catch (_) {}
-  const allOpts = accounts.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
+  const allOpts = accountOptions(accounts);
   const today = new Date().toISOString().slice(0, 10);
   $('sheet-title').textContent = 'Add transaction';
   $('sheet-sub').textContent = '';
+  // Description first: the date is already right, so it shouldn't take focus.
   $('sheet-list').innerHTML = `
     <div class="wiz">
-      <div class="field-row"><label for="add-date">Date</label>
-        <input class="input" id="add-date" type="date" value="${today}"></div>
       <div class="field-row"><label for="add-desc">Description</label>
-        <input class="input" id="add-desc" placeholder="e.g. Lunch"></div>
+        <input class="input" id="add-desc" placeholder="e.g. Lunch" autocomplete="off"></div>
       <div class="field-row"><label for="add-amt">Amount</label>
-        <input class="input" id="add-amt" type="number" step="0.01" min="0" placeholder="0.00"></div>
+        <input class="input" id="add-amt" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
       <div class="field-row"><label for="add-acc">Category</label>
         <select class="input" id="add-acc">${allOpts}</select></div>
       <div class="field-row"><label for="add-off">Paid from</label>
         <select class="input" id="add-off">${allOpts}</select></div>
+      <div class="field-row"><label for="add-date">Date</label>
+        <input class="input" id="add-date" type="date" value="${today}"></div>
       <p class="sheet-err" id="add-err" hidden></p>
       <button class="btn primary full" id="add-save">Add</button>
       <button class="btn ghost full" data-close="1">Cancel</button>
     </div>`;
+  $('add-acc').value = defaultCategory(accounts);
+  $('add-off').value = defaultOffset(accounts);
   openSheetEl();
   $('add-save').addEventListener('click', async () => {
     const payload = {
@@ -1156,6 +1677,7 @@ $('btn-add').addEventListener('click', async () => {
       });
       if (!r.success) throw new Error(r.message || 'Add failed');
       closeSheet();
+      toast('Transaction added');
       load().catch(() => {});
     } catch (e) {
       $('add-save').disabled = false;
@@ -1168,42 +1690,65 @@ $('btn-add').addEventListener('click', async () => {
 });
 
 function renderPick() {
-  const body = $('wizard-body');
-  body.innerHTML = `
+  $('wizard-body').innerHTML = `
     <div class="wiz">
       <button class="pick" id="pick-btn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>
         Choose screenshots or a PDF
-        <span class="sub">Pick several — duplicates get skipped</span>
+        <span class="sub">Pick several — they’re worked through one at a time</span>
       </button>
-      <p class="hint">Tally reads the images, checks each transaction against your journal, and lets you review the new ones before saving.</p>
+      <p class="hint">Tally reads each file, checks every transaction against your journal, and lets you review the new ones before saving. Duplicates are skipped.</p>
     </div>`;
   $('pick-btn').addEventListener('click', () => $('import-file').click());
   $('import-file').onchange = () => {
     const files = Array.from($('import-file').files);
-    if (!files.length) return;
-    uploadFiles(files);
     $('import-file').value = '';
+    if (files.length) beginImport(files);
   };
 }
 
-async function uploadFiles(files) {
-  const n = files.length;
-  $('wizard-body').innerHTML = `<div class="wiz"><div class="progress"><i style="width:100%"></i></div><p class="hint">Parsing ${n} file${n > 1 ? 's' : ''}…</p></div>`;
+function beginImport(files) {
+  wiz.queue = files.slice();
+  wiz.fileTotal = files.length;
+  wiz.fileIdx = 0;
+  nextFile();
+}
+
+function nextFile() {
+  const file = wiz.queue.shift();
+  if (!file) { closeWizard(); return; }
+  wiz.fileIdx += 1;
+  wiz.wizard_id = null;
+  uploadFile(file);
+}
+
+async function uploadFile(file) {
+  const progress = wiz.fileTotal > 1 ? `File ${wiz.fileIdx} of ${wiz.fileTotal} · ` : '';
+  $('wizard-sub').textContent = progress + file.name;
+  $('wizard-body').innerHTML = `<div class="wiz">
+    <div class="progress"><i style="width:100%"></i></div>
+    <p class="hint">Reading ${esc(file.name)}…</p>
+    <p class="muted">Screenshots go through AI parsing, which can take a few seconds.</p>
+  </div>`;
   const fd = new FormData();
-  files.forEach(f => fd.append('file', f));
+  fd.append('file', file);
   try {
     const d = await api('/api/import', { method: 'POST', body: fd });
     if (d.step === 'card') renderCardConfirm(d);
     else if (d.step === 'none') renderToast('ok', d.message);
     else if (d.step === 'error') renderToast('err', d.message);
-    else throw new Error('Unexpected response');
+    else throw new Error('Unexpected response from the server.');
   } catch (e) { renderToast('err', e.message); }
+}
+
+function fileProgressPrefix() {
+  return wiz.fileTotal > 1 ? `File ${wiz.fileIdx} of ${wiz.fileTotal} · ` : '';
 }
 
 function renderCardConfirm(d) {
   wiz.wizard_id = d.wizard_id;
-  $('wizard-sub').textContent = d.group_note ? `${d.group_note} · ${d.count} new transactions` : `${d.count} new transactions (${d.start_date} → ${d.end_date})`;
+  $('wizard-sub').textContent = fileProgressPrefix()
+    + `${d.count} new transaction${d.count === 1 ? '' : 's'} · ${fmtDateShort(d.start_date)} – ${fmtDateShort(d.end_date)}`;
   const body = $('wizard-body');
   body.innerHTML = `
     <div class="wiz">
@@ -1249,25 +1794,27 @@ function renderTxView() {
   const chips = (t.account ? `<span class="chip">${esc(t.account)}</span>` : '')
     + (t.amortize_months ? `<span class="chip">split over ${t.amortize_months} months</span>` : '');
   const pct = Math.round((wiz.idx / wiz.total) * 100);
-  $('wizard-sub').textContent = `Card · ${esc(wiz.cardName || '')}`;
+  $('wizard-sub').textContent = fileProgressPrefix() + `Card · ${wiz.cardName || ''}`;
   $('wizard-body').innerHTML = `
     <div class="wiz">
       <div class="progress"><i style="width:${pct}%"></i></div>
       <div class="tx-card">
         <div class="tx-count">${wiz.idx + 1} of ${wiz.total}</div>
         <div class="tx-desc">${esc(t.description)}</div>
-        <div class="tx-meta"><span class="${direction}">${direction === 'income' ? '↑ income' : '↓ expense'}</span> ${amt} &nbsp;|&nbsp; ${t.date}</div>
+        <div class="tx-meta"><span class="${direction}">${direction === 'income' ? '↑ income' : '↓ expense'}</span> ${amt} &nbsp;|&nbsp; ${esc(fmtDate(t.date))}</div>
         ${chips ? `<div class="accs">${chips}</div>` : ''}
         ${sugg}
       </div>
       <div class="wiz-actions">
-        <button class="btn primary full" data-act="confirm">Confirm</button>
-        <button class="btn ghost full" data-act="category">Category</button>
-        <button class="btn ghost full" data-act="edit">Edit</button>
-        <button class="btn ghost full" data-act="name">Rename</button>
-        <button class="btn ghost full" data-act="split">Split</button>
-        ${t.type !== 'income' ? '<button class="btn ghost full" data-act="amortize">Amortize</button>' : ''}
-        <button class="btn danger full" data-act="skip">Skip</button>
+        <button class="btn primary full" data-act="confirm">Confirm${t.ai_suggestion ? ` — ${esc(t.ai_suggestion)}` : ''}</button>
+        <div class="wiz-secondary">
+          <button class="btn ghost" data-act="category">Category</button>
+          <button class="btn ghost" data-act="edit">Edit</button>
+          <button class="btn ghost" data-act="name">Rename</button>
+          <button class="btn ghost" data-act="split">Split</button>
+          ${t.type !== 'income' ? '<button class="btn ghost" data-act="amortize">Amortize</button>' : ''}
+        </div>
+        <button class="btn ghost danger full" data-act="skip">Skip this one</button>
       </div>
     </div>`;
   bodyQuery('.wiz-actions .btn', el => el.addEventListener('click', () => {
@@ -1431,16 +1978,21 @@ function renderFinish(s) {
   const flush = s.reconcile_flush
     ? `<div class="toast ok"><strong>Reconcile batch ✓</strong><div class="muted">${esc(s.reconcile_flush)}</div></div>`
     : '';
-  $('wizard-sub').textContent = '';
+  $('wizard-sub').textContent = fileProgressPrefix();
+  const more = wiz.queue.length > 0;
   $('wizard-body').innerHTML = `
     <div class="wiz">
-      <div class="sum-total">Done!</div>
+      <div class="sum-total">${more ? 'File done' : 'All done'}</div>
       <div class="toast ok">${lines.join('<br>') || 'Nothing was changed.'}</div>
       ${totals ? `<div>${totals}</div>` : ''}
       ${commit}
       ${flush}
-      <button class="btn primary full" data-close="1">Close</button>
+      ${nextFileButton()}
+      <button class="btn ${more ? 'ghost' : 'primary'} full" data-close="1">Close</button>
     </div>`;
+  wireNextFile();
+  const saved = (s.auto_count || 0) + (s.confirmed_count || 0);
+  if (saved) toast(`${saved} transaction${saved === 1 ? '' : 's'} saved`);
   load().catch(() => {});
 }
 
@@ -1538,6 +2090,7 @@ function renderDiff(r) {
           </div>
           <button class="btn primary full" data-close="1">Done</button>
         </div>`;
+      toast(s.settled ? 'Balance adjusted' : 'Marked reconciled');
       load().catch(() => {});
     } catch (e) { renderToast('err', e.message); }
   });
@@ -1547,9 +2100,8 @@ $('wizard').addEventListener('click', e => {
   if (e.target === $('wizard') || e.target.closest('.sheet-close') || e.target.closest('[data-close]')) closeWizard();
 });
 
-load().catch(err => {
-  document.getElementById('net-worth').textContent = 'Error loading data';
-});
+showTab(location.hash.slice(1) || 'overview', { push: false });
+load().catch(() => {});
 </script>
 </body>
 </html>
