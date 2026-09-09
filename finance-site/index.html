@@ -254,6 +254,8 @@
   @media (min-width: 901px) { .stat .value { font-size: 28px; } }
   @media (max-width: 480px) { .stat { padding: 15px 16px; } }
   .stat .hint { display: block; font-size: 12px; color: var(--tertiary); margin-top: 4px; }
+  .stat .hint.up { color: var(--green); font-weight: 600; }
+  .stat .hint.down { color: var(--red); font-weight: 600; }
   .stat.net .value {
     background: linear-gradient(135deg, var(--tint), var(--purple));
     -webkit-background-clip: text; background-clip: text; color: transparent;
@@ -984,10 +986,12 @@ function render() {
   setStat('liabilities', d.liabilities);
   setStat('month-net', d.month.expenses);
   $('month-hint').textContent = 'earned ' + cur.format(d.month.income) + ' so far';
-  const nAssets = d.accounts.assets.length, nLiab = d.accounts.liabilities.length;
-  // Kept short so it stays on one line and the card matches its neighbour.
-  $('net-worth-hint').textContent =
-    `${nAssets} asset${nAssets === 1 ? '' : 's'} · ${nLiab} liabilit${nLiab === 1 ? 'y' : 'ies'}`;
+  // How the figure above it moved this month — the account counts that used to
+  // sit here restated what the two cards beside it already show.
+  const change = d.month.net_change || 0;
+  const hint = $('net-worth-hint');
+  hint.textContent = (change >= 0 ? '+' : '−') + cur.format(Math.abs(change)) + ' this month';
+  hint.className = 'hint ' + (change > 0 ? 'up' : change < 0 ? 'down' : '');
 
   // Data-driven sections first so a chart failure can't hide them.
   safe(renderBudgets);

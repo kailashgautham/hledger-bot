@@ -282,7 +282,7 @@ def build_data(text: str, currency: str = "SGD", settings: dict | None = None,
     liabilities = sum(account_total(balances, a, currency) for a in balances if a.startswith("liabilities:"))
 
     monthly: dict[str, dict] = defaultdict(
-        lambda: {"income": 0.0, "expenses": 0.0, "excluded": 0.0})
+        lambda: {"income": 0.0, "expenses": 0.0, "excluded": 0.0, "net_change": 0.0})
     monthly_cats: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     expense_cats: dict[str, float] = defaultdict(float)
     monthly_income: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
@@ -311,6 +311,11 @@ def build_data(text: str, currency: str = "SGD", settings: dict | None = None,
             "amount": round(amt, 2),
             "accounts": [p["account"] for p in t["postings"]],
         })
+        # Net worth is assets + liabilities, so its change over a period is
+        # simply the sum of that period's postings to those accounts.
+        monthly[t["date"][:7]]["net_change"] += sum(
+            p["amount"] for p in postings
+            if p["account"].startswith(("assets:", "liabilities:")))
         month = t["date"][:7]
         monthly[month]["income"] += income
         monthly[month]["expenses"] += expense
@@ -330,7 +335,8 @@ def build_data(text: str, currency: str = "SGD", settings: dict | None = None,
     months = sorted(monthly)
     today = date.today().isoformat()
     this_month = today[:7]
-    tm = monthly.get(this_month, {"income": 0.0, "expenses": 0.0, "excluded": 0.0})
+    tm = monthly.get(this_month,
+                     {"income": 0.0, "expenses": 0.0, "excluded": 0.0, "net_change": 0.0})
 
     budget_month = this_month
     budget_cats = {a: v for a, v in monthly_cats.get(budget_month, {}).items() if v > 0}
@@ -384,6 +390,7 @@ def build_data(text: str, currency: str = "SGD", settings: dict | None = None,
             # Outflow deliberately kept out of "expenses" (tax). Surfaced so the
             # dashboard can show it rather than silently losing the money.
             "excluded": round(tm.get("excluded", 0.0), 2),
+            "net_change": round(tm.get("net_change", 0.0), 2),
         },
         "monthly": [
             {"month": m, "income": round(monthly[m]["income"], 2),

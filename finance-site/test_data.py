@@ -133,6 +133,36 @@ def test_budgets_reconcile_with_headline_spend():
     assert budgeted == month_of(d)["expenses"] == 70.0, (budgeted, month_of(d))
 
 
+def test_net_change_matches_net_worth_from_empty():
+    """Starting from an empty ledger, this month's change must equal net worth.
+
+    salary 5000 into the bank, 20 on a card, 1000 tax out of the bank
+      assets      = 5000 - 1000 = 4000
+      liabilities = -20
+      net worth   = 3980
+    """
+    d = data(SALARY, LUNCH, TAX)
+    assert d["net_worth"] == 3980.0, d["net_worth"]
+    assert d["month"]["net_change"] == d["net_worth"], (d["month"]["net_change"], d["net_worth"])
+
+
+def test_net_change_ignores_transfers_between_own_accounts():
+    """Moving money around must not look like the net worth moved."""
+    transfer = f"""
+{MONTH}-07 Move to savings
+    assets:bank:savings       SGD 500.00
+    assets:bank:dbs          SGD -500.00
+"""
+    d = data(SALARY, transfer)
+    assert d["month"]["net_change"] == 5000.0, d["month"]["net_change"]
+    assert d["net_worth"] == 5000.0
+
+
+def test_net_change_is_negative_when_spending_exceeds_income():
+    d = data(LUNCH, GROCERIES)
+    assert d["month"]["net_change"] == -70.0, d["month"]["net_change"]
+
+
 def test_settings_loaded_from_file(tmp=None):
     """budgets.json overrides the defaults, including labels and exclusions."""
     import json
