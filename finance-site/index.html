@@ -206,6 +206,10 @@
   @keyframes popOut { to { opacity: 0; transform: translateY(8px) scale(.97); } }
 
   /* ── Stats ─────────────────────────────────────── */
+  /* Grid/flex children default to min-width:auto, which refuses to shrink
+     below their content. Long account names then push whole cards off-screen. */
+  .stats > *, .grid > *, .split > *, .insights-grid > *, .budget-grid > * { min-width: 0; }
+
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 16px; }
   @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 480px) { .stats { grid-template-columns: 1fr 1fr; gap: 10px; } }
@@ -224,10 +228,14 @@
   .stat .label { display: block; font-size: 12px; font-weight: 500; color: var(--secondary); letter-spacing: 0.01em; }
   .stat .value {
     display: block; font-family: var(--font-display);
-    font-size: 28px; font-weight: 600; letter-spacing: -0.03em; margin-top: 6px;
+    /* Scales with the viewport so a long figure can't outgrow a narrow card. */
+    font-size: clamp(17px, 5.2vw, 28px);
+    font-weight: 600; letter-spacing: -0.03em; margin-top: 6px;
     font-variant-numeric: tabular-nums; line-height: 1.1;
+    overflow-wrap: anywhere;
   }
-  @media (max-width: 480px) { .stat { padding: 15px 16px; } .stat .value { font-size: 24px; } }
+  @media (min-width: 901px) { .stat .value { font-size: 28px; } }
+  @media (max-width: 480px) { .stat { padding: 15px 16px; } }
   .stat .hint { display: block; font-size: 12px; color: var(--tertiary); margin-top: 4px; }
   .stat.net .value {
     background: linear-gradient(135deg, var(--tint), var(--purple));
@@ -288,7 +296,9 @@
     font-size: 14px;
   }
   .row:last-child { border-bottom: none; }
-  .row .name { color: var(--secondary); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* Account paths are long and unbreakable (no spaces). Wrap them rather than
+     truncating — the leaf segment is the part that identifies the account. */
+  .row .name { color: var(--secondary); min-width: 0; overflow-wrap: anywhere; }
   .row .val { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .row.liab .val { color: var(--red); }
 
@@ -385,16 +395,9 @@
   .search input::-webkit-search-cancel-button,
   .search input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
   .search-clear svg { width: 11px; height: 11px; }
-  @media (max-width: 640px) {
-    .tools { gap: 8px; }
-    .search { flex: 1 0 100%; }
-    .segmented { flex: 1; }
-    .seg { flex: 1; padding: 8px 6px; }
-    .field, .field select { width: 100%; }
-  }
 
   .segmented {
-    display: inline-flex; gap: 2px; padding: 3px;
+    display: inline-flex; gap: 2px; padding: 3px; min-width: 0;
     background: var(--input-fill); border: 1px solid var(--glass-border);
     border-radius: var(--r-sm);
     -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
@@ -403,6 +406,7 @@
     border: none; background: transparent; cursor: pointer;
     font: 600 12px var(--font); color: var(--secondary);
     padding: 7px 14px; border-radius: 9px; transition: background .25s var(--ease), color .25s var(--ease);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .seg:hover { color: var(--text); }
   .seg.active { background: var(--glass-fill-2); color: var(--tint); box-shadow: inset 0 1px 0 var(--glass-hi), 0 1px 4px rgba(0,0,0,.15); }
@@ -422,6 +426,24 @@
     transform: translateY(-70%) rotate(45deg); pointer-events: none;
   }
   .field select:focus { border-color: var(--tint); }
+
+  /* Responsive overrides for the toolbar. These must follow the base rules
+     above — a media query adds no specificity, so a later plain rule wins. */
+  @media (max-width: 640px) {
+    .tools { gap: 8px; }
+    .search { flex: 1 0 100%; }
+    .segmented { flex: 1 0 100%; }
+    .seg { flex: 1; min-width: 0; padding: 8px 4px; font-size: 12px; }
+    .field, .field select { width: 100%; }
+  }
+  /* Below ~400px the full words don't fit four across, so swap in shorter
+     ones rather than ellipsising every label into uselessness. */
+  .seg .seg-short { display: none; }
+  @media (max-width: 400px) {
+    .seg { padding: 8px 2px; font-size: 11px; letter-spacing: -0.01em; }
+    .seg .seg-long { display: none; }
+    .seg .seg-short { display: inline; }
+  }
 
   /* ── Transactions ──────────────────────────────── */
   .txn-list { display: flex; flex-direction: column; }
@@ -444,6 +466,7 @@
     font-size: 11px; font-weight: 500; color: var(--secondary);
     background: var(--input-fill); border: 1px solid var(--glass-border);
     border-radius: 7px; padding: 2px 7px; white-space: nowrap;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis;
   }
   .amt.pos { color: var(--green); }
   .amt.neg { color: var(--red); }
@@ -593,7 +616,6 @@
     input[type=date] { font-size: 13px; }
     .sheet-list { padding: 0 16px calc(20px + env(safe-area-inset-bottom)); }
     .sheet-head { padding: 12px 16px 10px; }
-    .wiz-actions, .wiz-secondary { gap: 6px; }
   }
   .kv { display: flex; justify-content: space-between; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--sep); font-size: 13px; }
   .kv:last-child { border-bottom: none; }
@@ -615,6 +637,7 @@
   .wiz-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
   .wiz-secondary { display: grid; grid-template-columns: repeat(auto-fit, minmax(94px, 1fr)); gap: 8px; }
   .wiz-secondary .btn { padding: 11px 8px; justify-content: center; }
+  @media (max-width: 640px) { .wiz-actions, .wiz-secondary { gap: 6px; } }
   .acc-list { display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow-y: auto; }
   .acc-item {
     display: flex; justify-content: space-between; align-items: center; gap: 10px;
@@ -721,16 +744,16 @@
       <div class="tools">
         <div class="search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          <input id="search" type="search" placeholder="Search descriptions and accounts" autocomplete="off" aria-label="Search transactions">
+          <input id="search" type="search" placeholder="Search transactions" autocomplete="off" aria-label="Search transactions">
           <button class="search-clear" id="search-clear" type="button" aria-label="Clear search" hidden>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
           </button>
         </div>
         <div class="segmented" id="typeFilter" role="group" aria-label="Filter by type">
           <button class="seg active" data-type="all" aria-pressed="true">All</button>
-          <button class="seg" data-type="income" aria-pressed="false">Income</button>
-          <button class="seg" data-type="expense" aria-pressed="false">Expenses</button>
-          <button class="seg" data-type="transfer" aria-pressed="false">Transfers</button>
+          <button class="seg" data-type="income" aria-pressed="false" aria-label="Income"><span class="seg-long">Income</span><span class="seg-short">In</span></button>
+          <button class="seg" data-type="expense" aria-pressed="false" aria-label="Expenses"><span class="seg-long">Expenses</span><span class="seg-short">Out</span></button>
+          <button class="seg" data-type="transfer" aria-pressed="false" aria-label="Transfers"><span class="seg-long">Transfers</span><span class="seg-short">Move</span></button>
         </div>
         <div class="field">
           <select id="monthFilter" aria-label="Filter by month"><option value="all">All months</option></select>
@@ -876,6 +899,20 @@ function fmtMonth(key, short) {
     : { month: 'long', year: 'numeric' }).format(d);
 }
 
+const curCompact = new Intl.NumberFormat('en-SG', {
+  style: 'currency', currency: 'SGD', notation: 'compact', maximumFractionDigits: 2,
+});
+
+/* Headline figures share a narrow card. Past eight figures the exact cents
+   stop being useful and start breaking the layout, so abbreviate and keep
+   the precise value in the tooltip. */
+function setStat(id, value) {
+  const el = $(id);
+  const big = Math.abs(value) >= 10_000_000;
+  el.textContent = big ? curCompact.format(value) : cur.format(value);
+  el.title = cur.format(value);
+}
+
 function fmtTime(ms) {
   return new Intl.DateTimeFormat('en-SG', { hour: 'numeric', minute: '2-digit' }).format(new Date(ms));
 }
@@ -884,10 +921,10 @@ function render() {
   const d = state.data;
   $('greeting').textContent = greeting();
   $('asof').textContent = 'Tally · as of ' + fmtDate(d.as_of);
-  $('net-worth').textContent = cur.format(d.net_worth);
-  $('assets').textContent = cur.format(d.assets);
-  $('liabilities').textContent = cur.format(d.liabilities);
-  $('month-net').textContent = cur.format(d.month.expenses);
+  setStat('net-worth', d.net_worth);
+  setStat('assets', d.assets);
+  setStat('liabilities', d.liabilities);
+  setStat('month-net', d.month.expenses);
   $('month-hint').textContent = 'earned ' + cur.format(d.month.income) + ' so far';
   const nAssets = d.accounts.assets.length, nLiab = d.accounts.liabilities.length;
   $('net-worth-hint').textContent =
