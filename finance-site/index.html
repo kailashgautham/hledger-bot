@@ -6,8 +6,17 @@
 <title>Tally</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<meta name="theme-color" content="#000000">
+<link rel="manifest" href="/manifest.json">
+<!-- Status bar tint follows the theme instead of always being black. -->
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-title" content="Tally">
+<!-- Launch standalone from the home screen rather than inside Safari chrome.
+     black-translucent lets the page run under the status bar, so the layout
+     below pads by env(safe-area-inset-top) to compensate. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
@@ -125,8 +134,11 @@
       var(--bg);
   }
 
-  main { max-width: 1180px; margin: 0 auto; padding: 44px 24px 132px; }
-  @media (max-width: 640px) { main { padding: 28px 16px 118px; } }
+  /* env(safe-area-inset-top) is 0 in a browser tab and the status-bar height
+     when launched standalone from the home screen, where the page runs
+     underneath it. Same rule covers both. */
+  main { max-width: 1180px; margin: 0 auto; padding: calc(44px + env(safe-area-inset-top)) 24px 132px; }
+  @media (max-width: 640px) { main { padding: calc(28px + env(safe-area-inset-top)) 16px 118px; } }
 
   .glass {
     background: var(--glass-fill);
@@ -461,6 +473,25 @@
   }
   .txn:last-child { border-bottom: none; }
   .txn:hover { background: var(--input-fill); }
+  /* The whole row opens the editor — a far bigger target than the 34px pencil. */
+  .txn { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .txn:active { background: var(--glass-fill-2); }
+
+  /* Recent transactions, offered as one-tap prefills in the Add sheet. */
+  .recents { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 6px; scrollbar-width: none; }
+  .recents::-webkit-scrollbar { display: none; }
+  .recent {
+    flex: none; max-width: 190px; text-align: left; cursor: pointer;
+    padding: 9px 12px; border-radius: 12px;
+    background: var(--input-fill); border: 1px solid var(--glass-border);
+    color: var(--text); font: inherit; -webkit-tap-highlight-color: transparent;
+    transition: border-color .18s var(--ease), background .18s var(--ease);
+  }
+  .recent:hover { background: var(--glass-fill-2); }
+  .recent.on { border-color: var(--tint); background: color-mix(in srgb, var(--tint) 14%, var(--input-fill)); }
+  .recent b { display: block; font-size: 13px; font-weight: 600; letter-spacing: -0.01em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .recent span { display: block; font-size: 11px; color: var(--tertiary); font-variant-numeric: tabular-nums; margin-top: 2px; }
   .txn-date { grid-area: date; color: var(--tertiary); font-variant-numeric: tabular-nums; white-space: nowrap; padding-top: 1px; }
   .txn-main { grid-area: main; min-width: 0; }
   .txn-name { font-weight: 600; letter-spacing: -0.01em; overflow-wrap: anywhere; }
@@ -1163,6 +1194,23 @@ function filteredTxns() {
   });
 }
 
+/* Most-repeated recent expenses, offered as one-tap prefills. Ranked by how
+   often a description recurs, so the things you actually log often float up. */
+function recentTemplates(limit = 8) {
+  const seen = new Map();
+  for (const t of (state.data ? state.data.transactions : [])) {
+    if (t.type !== 'expense' || !t.description) continue;
+    const key = t.description.toLowerCase();
+    const hit = seen.get(key);
+    if (hit) { hit.count += 1; continue; }
+    const category = t.accounts.find(a => a.startsWith('expenses:')) || t.accounts[0] || '';
+    const offset = t.accounts.find(a => a !== category) || '';
+    // transactions[] is newest-first, so the first sighting is the latest one.
+    seen.set(key, { description: t.description, amount: Math.abs(t.amount), category, offset, count: 1 });
+  }
+  return [...seen.values()].sort((a, b) => b.count - a.count).slice(0, limit);
+}
+
 /* ── Account pickers ──────────────────────────────── */
 const ACCOUNT_GROUPS = [
   ['expenses:', 'Expenses'], ['income:', 'Income'],
@@ -1232,7 +1280,7 @@ function renderTxns() {
     const name = esc(t.description || '(no description)');
     const btn = (act, label, icon) =>
       `<button class="mini-btn" data-i="${i}" data-act="${act}" title="${label} ${name}" aria-label="${label} ${name}">${icon}</button>`;
-    return `<div class="txn">
+    return `<div class="txn" data-i="${i}" role="button" tabindex="0" aria-label="Edit ${name}">
       <div class="txn-date" title="${esc(t.date)}">${esc(fmtDateShort(t.date))}</div>
       <div class="txn-main">
         <div class="txn-name">${name}</div>
@@ -1393,10 +1441,13 @@ function openSheetEl() {
   focusFirst($('sheet'));
 }
 
-/* Land focus on something useful, not the close button. */
+/* Land focus on something useful, not the close button. A sheet can name its
+   own target with data-autofocus — needed where a prefill control sits above
+   the field you actually want to type in. */
 function focusFirst(dialog) {
   requestAnimationFrame(() => {
-    const target = dialog.querySelector('.sheet-list input:not([type=hidden]), .sheet-list select, .sheet-list button');
+    const target = dialog.querySelector('.sheet-list [data-autofocus]')
+      || dialog.querySelector('.sheet-list input:not([type=hidden]), .sheet-list select, .sheet-list button');
     if (target) target.focus({ preventScroll: true });
   });
 }
@@ -1481,12 +1532,27 @@ $('budget-grid').addEventListener('click', e => {
 /* ── Transaction row actions ──────────────────────── */
 $('txn-body').addEventListener('click', e => {
   const btn = e.target.closest('.mini-btn');
-  if (!btn) return;
-  const t = (state.filtered || [])[+btn.dataset.i];
-  if (!t) return;
-  if (btn.dataset.act === 'edit') openEditSheet(t);
-  else if (btn.dataset.act === 'amortize') openAmortizeSheet(t);
-  else if (btn.dataset.act === 'delete') openDeleteSheet(t);
+  if (btn) {
+    const t = (state.filtered || [])[+btn.dataset.i];
+    if (!t) return;
+    if (btn.dataset.act === 'edit') openEditSheet(t);
+    else if (btn.dataset.act === 'amortize') openAmortizeSheet(t);
+    else if (btn.dataset.act === 'delete') openDeleteSheet(t);
+    return;
+  }
+  const row = e.target.closest('.txn');
+  if (row) {
+    const t = (state.filtered || [])[+row.dataset.i];
+    if (t) openEditSheet(t);
+  }
+});
+$('txn-body').addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const row = e.target.closest('.txn');
+  if (!row || e.target.closest('.mini-btn')) return;
+  e.preventDefault();
+  const t = (state.filtered || [])[+row.dataset.i];
+  if (t) openEditSheet(t);
 });
 
 function openDeleteSheet(t) {
@@ -1689,11 +1755,20 @@ $('btn-add').addEventListener('click', async () => {
   const today = new Date().toISOString().slice(0, 10);
   $('sheet-title').textContent = 'Add transaction';
   $('sheet-sub').textContent = '';
+  const recents = recentTemplates();
+  const recentsHtml = recents.length ? `
+      <div class="field-row"><label>Repeat a recent one</label>
+        <div class="recents" id="add-recents">${recents.map((r, i) =>
+          `<button type="button" class="recent" data-i="${i}">
+             <b>${esc(r.description)}</b><span>${cur.format(r.amount)} · ${esc(shortAccount(r.category))}</span>
+           </button>`).join('')}</div>
+      </div>` : '';
   // Description first: the date is already right, so it shouldn't take focus.
   $('sheet-list').innerHTML = `
     <div class="wiz">
+      ${recentsHtml}
       <div class="field-row"><label for="add-desc">Description</label>
-        <input class="input" id="add-desc" placeholder="e.g. Lunch" autocomplete="off"></div>
+        <input class="input" id="add-desc" placeholder="e.g. Lunch" autocomplete="off" data-autofocus></div>
       <div class="field-row"><label for="add-amt">Amount</label>
         <input class="input" id="add-amt" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
       <div class="field-row"><label for="add-acc">Category</label>
@@ -1708,6 +1783,22 @@ $('btn-add').addEventListener('click', async () => {
     </div>`;
   $('add-acc').value = defaultCategory(accounts);
   $('add-off').value = defaultOffset(accounts);
+  if (recents.length) {
+    $('add-recents').addEventListener('click', e => {
+      const chip = e.target.closest('.recent');
+      if (!chip) return;
+      const r = recents[+chip.dataset.i];
+      $('add-desc').value = r.description;
+      $('add-amt').value = r.amount.toFixed(2);
+      // Only select accounts the list actually offers, so a stale template
+      // can't silently leave the dropdown on something unrelated.
+      if (r.category && accounts.includes(r.category)) $('add-acc').value = r.category;
+      if (r.offset && accounts.includes(r.offset)) $('add-off').value = r.offset;
+      $('add-recents').querySelectorAll('.recent').forEach(c => c.classList.toggle('on', c === chip));
+      $('add-amt').focus();
+      $('add-amt').select();
+    });
+  }
   openSheetEl();
   $('add-save').addEventListener('click', async () => {
     const payload = {

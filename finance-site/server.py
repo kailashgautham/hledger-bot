@@ -225,6 +225,12 @@ class Handler(BaseHTTPRequestHandler):
             body = (Path(__file__).parent / "apple-touch-icon.png").read_bytes()
             self._send(200, body, "image/png")
             return
+        if self.path == "/manifest.json":
+            # Served unauthenticated: iOS fetches it before any session exists,
+            # and it contains nothing private.
+            body = (Path(__file__).parent / "manifest.json").read_bytes()
+            self._send(200, body, "application/manifest+json")
+            return
         if self.path == "/login" or self.path.startswith("/login?"):
             if self._authed():
                 self._redirect("/")

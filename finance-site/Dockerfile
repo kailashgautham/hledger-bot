@@ -19,6 +19,7 @@ COPY finance-site/balances.py \
      finance-site/index.html \
      finance-site/login.html \
      finance-site/favicon.svg \
+     finance-site/manifest.json \
      finance-site/apple-touch-icon.png ./
 
 RUN chown -R site:site /app
