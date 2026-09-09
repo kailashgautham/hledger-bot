@@ -551,10 +551,19 @@
 
   /* ── Action buttons ────────────────────────────── */
   .actions-bar { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
-  @media (max-width: 480px) {
-    .actions-bar { gap: 8px; }
-    .actions-bar .btn { flex: 1; justify-content: center; padding: 11px 12px; font-size: 12px; }
-    .actions-bar .btn svg { width: 14px; height: 14px; }
+  /* Wrapping a two-word label inside a pill puts a centred two-line block next
+     to a vertically-centred icon, which reads as misaligned. Keep one line and
+     shorten the label instead. */
+  .btn-short { display: none; }
+  @media (max-width: 560px) {
+    .actions-bar { gap: 8px; margin-bottom: 20px; }
+    .actions-bar .btn {
+      flex: 1 1 0; min-width: 0; justify-content: center;
+      padding: 12px 10px; font-size: 13px; white-space: nowrap; gap: 7px;
+    }
+    .actions-bar .btn svg { width: 15px; height: 15px; }
+    .actions-bar .btn-long { display: none; }
+    .actions-bar .btn-short { display: inline; }
   }
   .btn {
     display: inline-flex; align-items: center; gap: 8px;
@@ -573,7 +582,7 @@
   }
   .btn.ghost { background: var(--input-fill); }
   .btn.danger { color: var(--red); }
-  .btn svg { width: 16px; height: 16px; }
+  .btn svg { width: 16px; height: 16px; flex: none; }
   .btn.full { width: 100%; justify-content: center; }
   .btn:disabled { opacity: .5; cursor: default; transform: none; }
 
@@ -680,16 +689,16 @@
   </div>
 
   <div class="actions-bar">
-    <button class="btn primary" id="btn-import">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>
-      Import statement
+    <button class="btn primary" id="btn-import" aria-label="Import statement">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>
+      <span class="btn-long">Import statement</span><span class="btn-short">Import</span>
     </button>
-    <button class="btn ghost" id="btn-add">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14m-7-7h14"/></svg>
-      Add transaction
+    <button class="btn ghost" id="btn-add" aria-label="Add transaction">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14m-7-7h14"/></svg>
+      <span class="btn-long">Add transaction</span><span class="btn-short">Add</span>
     </button>
     <button class="btn ghost" id="btn-reconcile">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7 7 9l-2-2m14-2-4 4m-2 8 2 2 4-4m-9 3a5 5 0 0 0 5-5"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
       Reconcile
     </button>
   </div>
@@ -927,8 +936,9 @@ function render() {
   setStat('month-net', d.month.expenses);
   $('month-hint').textContent = 'earned ' + cur.format(d.month.income) + ' so far';
   const nAssets = d.accounts.assets.length, nLiab = d.accounts.liabilities.length;
+  // Kept short so it stays on one line and the card matches its neighbour.
   $('net-worth-hint').textContent =
-    `${nAssets} asset account${nAssets === 1 ? '' : 's'} · ${nLiab} liabilit${nLiab === 1 ? 'y' : 'ies'}`;
+    `${nAssets} asset${nAssets === 1 ? '' : 's'} · ${nLiab} liabilit${nLiab === 1 ? 'y' : 'ies'}`;
 
   // Data-driven sections first so a chart failure can't hide them.
   safe(renderBudgets);
@@ -1057,7 +1067,10 @@ function renderFlow() {
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { labels: { color: tick, usePointStyle: true, pointStyleWidth: 8, boxHeight: 8 } },
+        // No pointStyleWidth: setting it makes Chart.js draw an ellipse with
+        // rx = pointStyleWidth/2 but ry = boxHeight*√2/2, i.e. a vertical oval.
+        // Omitting it takes the arc() path instead, giving a true circle.
+        legend: { labels: { color: tick, usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, padding: 14 } },
         tooltip: { callbacks: { label: c => ' ' + c.dataset.label + ': ' + cur.format(c.parsed.y) } },
       },
       scales: {
@@ -1097,7 +1110,7 @@ function renderCats() {
       responsive: true, maintainAspectRatio: false, cutout: '64%',
       onClick: (evt, els) => { if (els.length && catKeys[els[0].index]) openSheet(catKeys[els[0].index]); },
       plugins: {
-        legend: { position: 'bottom', labels: { color: tick, boxWidth: 10, boxHeight: 10, usePointStyle: true, padding: 10, font: { size: 11 } } },
+        legend: { position: 'bottom', labels: { color: tick, usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, padding: 10, font: { size: 11 } } },
         tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + cur.format(c.parsed) } },
       },
     },
