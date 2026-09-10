@@ -563,8 +563,14 @@
      content in the middle of empty space. Above 900px the bar joins the
      header instead, inline beside the greeting, and stops being fixed. */
   @media (min-width: 901px) {
+    /* Centre everything on one line, and let only the nav claim the free
+       space. .refresh also carries margin-left:auto (it needs it on mobile,
+       where the nav is out of flow) — with both set, the spare width split
+       between them and the nav ended up stranded mid-header. */
+    .nav { align-items: center; }
+    .nav .refresh { margin-left: 0; }
     .tabbar {
-      position: static; transform: none; margin-left: auto; align-self: center;
+      position: static; transform: none; margin-left: auto;
       box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow-md);
     }
     .tab { flex-direction: row; gap: 7px; padding: 8px 16px; }
