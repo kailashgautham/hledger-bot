@@ -366,6 +366,20 @@ def build_data(text: str, currency: str = "SGD", settings: dict | None = None,
         "members": sorted(others.keys()),
     })
 
+    # Year-to-date and all-time category totals, rolled up from the same
+    # per-month figures so every period agrees with the monthly one.
+    year_cats: dict[str, float] = defaultdict(float)
+    all_cats: dict[str, float] = defaultdict(float)
+    for m, cats_ in monthly_cats.items():
+        if m > this_month:
+            continue
+        for account, value in cats_.items():
+            if value <= 0:
+                continue
+            all_cats[account] += value
+            if m[:4] == this_month[:4]:
+                year_cats[account] += value
+
     def by_magnitude(items: dict[str, float]) -> list[dict]:
         return [{"account": a, "amount": round(v, 2)} for a, v in
                 sorted(items.items(), key=lambda kv: -kv[1])]
@@ -396,10 +410,12 @@ def build_data(text: str, currency: str = "SGD", settings: dict | None = None,
              "excluded": round(monthly[m].get("excluded", 0.0), 2)}
             for m in months if m <= this_month
         ],
-        # Scoped to this month, matching the budgets, the income sources card
-        # and the drill-down sheet. It used to be an all-time total, so a slice
-        # opened a sheet listing only this month's transactions for it.
+        # Three periods for the category breakdown; the card toggles between
+        # them and the drill-down sheet filters to whichever is selected.
         "expense_categories": by_magnitude(budget_cats),
+        "expense_categories_year": by_magnitude(year_cats),
+        "expense_categories_all": by_magnitude(all_cats),
+        "year": this_month[:4],
         "income_categories": by_magnitude(monthly_income.get(this_month, {})),
         "budgets": {
             "month": budget_month,

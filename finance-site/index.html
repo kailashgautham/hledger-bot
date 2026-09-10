@@ -17,42 +17,17 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="preconnect" href="https://cdn.jsdelivr.net">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
-  @font-face {
-    font-family: 'SF Pro Text';
-    src: url('https://cdn.jsdelivr.net/npm/sf-pro@1.0.3/font/woff2/sf-pro-text_regular.woff2') format('woff2');
-    font-weight: 400; font-display: swap;
-  }
-  @font-face {
-    font-family: 'SF Pro Text';
-    src: url('https://cdn.jsdelivr.net/npm/sf-pro@1.0.3/font/woff2/sf-pro-text_semibold.woff2') format('woff2');
-    font-weight: 600; font-display: swap;
-  }
-  @font-face {
-    font-family: 'SF Pro Display';
-    src: url('https://cdn.jsdelivr.net/npm/sf-pro@1.0.3/font/woff2/sf-pro-display_regular.woff2') format('woff2');
-    font-weight: 400; font-display: swap;
-  }
-  @font-face {
-    font-family: 'SF Pro Display';
-    src: url('https://cdn.jsdelivr.net/npm/sf-pro@1.0.3/font/woff2/sf-pro-display_medium.woff2') format('woff2');
-    font-weight: 500; font-display: swap;
-  }
-  @font-face {
-    font-family: 'SF Pro Display';
-    src: url('https://cdn.jsdelivr.net/npm/sf-pro@1.0.3/font/woff2/sf-pro-display_semibold.woff2') format('woff2');
-    font-weight: 600; font-display: swap;
-  }
-  @font-face {
-    font-family: 'SF Pro Display';
-    src: url('https://cdn.jsdelivr.net/npm/sf-pro@1.0.3/font/woff2/sf-pro-display_bold.woff2') format('woff2');
-    font-weight: 700; font-display: swap;
-  }
   :root {
-    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
-    --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+    /* System stack only. SF Pro was fetched from a CDN but only at weights
+       400 and 600, so the 500s and 700s used throughout silently collapsed to
+       the nearest available weight on every non-Apple device. Each platform's
+       own UI font has the full range: SF on Apple, Segoe UI on Windows,
+       Roboto on Android. Also removes six render-blocking CDN requests and
+       the licensing question of redistributing an Apple font. */
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif;
+    --font-display: var(--font);
     --r-xl: 28px; --r-lg: 22px; --r-md: 16px; --r-sm: 12px;
     --blur: blur(28px) saturate(180%);
     --tabbar-blur: blur(40px) saturate(200%);
@@ -275,6 +250,10 @@
   .card { border-radius: var(--r-xl); padding: 22px; }
   .card > * { min-width: 0; }
   .card-title { font-size: 13px; font-weight: 600; color: var(--secondary); letter-spacing: -0.01em; margin-bottom: 16px; }
+  .card-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .card-head .card-title { flex: 1 1 auto; min-width: 0; }
+  .card-head .segmented { flex: none; margin-bottom: 12px; }
+  .segmented.mini .seg { padding: 5px 10px; font-size: 11px; }
   .card-title-sub { color: var(--tertiary); font-size: 11px; font-weight: 600; margin-left: 6px; }
   .chart-box { position: relative; height: 260px; min-width: 0; overflow: hidden; }
   canvas { max-width: 100%; }
@@ -538,6 +517,11 @@
   .mini-btn:focus-visible { color: var(--tint); border-color: var(--tint); }
   .mini-btn svg { width: 14px; height: 14px; }
   @media (max-width: 640px) { .mini-btn { width: 34px; height: 34px; margin-left: 4px; } }
+  /* Non-expense rows have no amortize button; an empty slot of the same size
+     keeps edit and delete aligned down the column instead of shifting. */
+  .mini-btn-gap { display: inline-block; width: 30px; margin-left: 6px; vertical-align: middle; }
+  @media (max-width: 640px) { .mini-btn-gap { width: 34px; margin-left: 4px; } }
+  .xfer { font-weight: 400; margin-right: 4px; }
   .sheet-err { color: var(--red); }
 
   /* ── Tab bar ───────────────────────────────────── */
@@ -574,6 +558,20 @@
   .tab:hover { color: var(--secondary); }
   .tab:active { transform: scale(0.94); }
   .tab.active { color: var(--tint); }
+
+  /* On a wide screen a floating pill at the bottom centre sits over the
+     content in the middle of empty space. Above 900px the bar joins the
+     header instead, inline beside the greeting, and stops being fixed. */
+  @media (min-width: 901px) {
+    .tabbar {
+      position: static; transform: none; margin-left: auto; align-self: center;
+      box-shadow: inset 0 1px 0 var(--glass-hi), var(--shadow-md);
+    }
+    .tab { flex-direction: row; gap: 7px; padding: 8px 16px; }
+    .tab svg { width: 17px; height: 17px; }
+    .tab span { font-size: 12px; }
+    main { padding-bottom: 56px; }
+  }
 
   /* ── View transitions ──────────────────────────── */
   .view { animation: viewIn .35s var(--ease); }
@@ -716,6 +714,20 @@
       <h1 class="nav-title" id="greeting"></h1>
       <p class="nav-sub" id="asof"><span class="skel">loading</span></p>
     </div>
+  <nav class="tabbar" id="tabbar" aria-label="Sections">
+    <button class="tab active" data-tab="overview" aria-current="page">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10H12V2Z"/><path d="M13 2.1A10 10 0 0 1 21.9 11H13V2.1Z" opacity=".55"/></svg>
+      <span>Overview</span>
+    </button>
+    <button class="tab" data-tab="insights">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3c.6 0 1 .5 1.1 1.1L14 7.6c.1.6.5 1 1.1 1.1l3.5.9c.6.1 1.1.5 1.1 1.1 0 .6-.5 1-1.1 1.1l-3.5.9c-.6.1-1 .5-1.1 1.1l-.9 3.5c-.1.6-.5 1.1-1.1 1.1-.6 0-1-.5-1.1-1.1l-.9-3.5c-.1-.6-.5-1-1.1-1.1l-3.5-.9C4.5 12.9 4 12.4 4 11.8c0-.6.5-1 1.1-1.1l3.5-.9c.6-.1 1-.5 1.1-1.1l.9-3.5C10.9 3.6 11.4 3 12 3Z"/><path d="M19 4.2v2.6c0 .2-.2.4-.4.4H16c-.2 0-.4-.2-.4-.4V4.2c0-.2.2-.4.4-.4h2.6c.2 0 .4.2.4.4Z" opacity=".55"/></svg>
+      <span>Insights</span>
+    </button>
+    <button class="tab" data-tab="activity">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h3v3H4V6Zm0 5h3v3H4v-3Zm0 5h3v3H4v-3Zm5-8h11v2H9V8Zm0 5h11v2H9v-2Zm0 5h11v2H9v-2Z"/></svg>
+      <span>Activity</span>
+    </button>
+  </nav>
     <button class="refresh" id="btn-refresh" title="Refresh" aria-label="Refresh data">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
     </button>
@@ -756,8 +768,27 @@
     </div>
 
     <div class="grid">
-      <div class="card glass"><div class="card-title">Cash flow</div><div class="chart-box"><canvas id="flowChart"></canvas></div></div>
-      <div class="card glass"><div class="card-title">Spending by category <span class="card-title-sub" id="cat-month"></span></div><div class="chart-box"><canvas id="catChart"></canvas></div></div>
+      <div class="card glass">
+        <div class="card-head">
+          <div class="card-title">Cash flow</div>
+          <div class="segmented mini" id="flowMode" role="group" aria-label="Cash flow series">
+            <button class="seg active" data-mode="both" aria-pressed="true">Both</button>
+            <button class="seg" data-mode="expenses" aria-pressed="false">Expenses</button>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="flowChart"></canvas></div>
+      </div>
+      <div class="card glass">
+        <div class="card-head">
+          <div class="card-title">Spending by category <span class="card-title-sub" id="cat-month"></span></div>
+          <div class="segmented mini" id="catPeriod" role="group" aria-label="Category period">
+            <button class="seg active" data-period="month" aria-pressed="true">Month</button>
+            <button class="seg" data-period="year" aria-pressed="false">Year</button>
+            <button class="seg" data-period="all" aria-pressed="false">All</button>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="catChart"></canvas></div>
+      </div>
     </div>
 
     <div class="split">
@@ -852,20 +883,6 @@
   </div>
 </div>
 
-<nav class="tabbar" id="tabbar" aria-label="Sections">
-  <button class="tab active" data-tab="overview" aria-current="page">
-    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10H12V2Z"/><path d="M13 2.1A10 10 0 0 1 21.9 11H13V2.1Z" opacity=".55"/></svg>
-    <span>Overview</span>
-  </button>
-  <button class="tab" data-tab="insights">
-    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3c.6 0 1 .5 1.1 1.1L14 7.6c.1.6.5 1 1.1 1.1l3.5.9c.6.1 1.1.5 1.1 1.1 0 .6-.5 1-1.1 1.1l-3.5.9c-.6.1-1 .5-1.1 1.1l-.9 3.5c-.1.6-.5 1.1-1.1 1.1-.6 0-1-.5-1.1-1.1l-.9-3.5c-.1-.6-.5-1-1.1-1.1l-3.5-.9C4.5 12.9 4 12.4 4 11.8c0-.6.5-1 1.1-1.1l3.5-.9c.6-.1 1-.5 1.1-1.1l.9-3.5C10.9 3.6 11.4 3 12 3Z"/><path d="M19 4.2v2.6c0 .2-.2.4-.4.4H16c-.2 0-.4-.2-.4-.4V4.2c0-.2.2-.4.4-.4h2.6c.2 0 .4.2.4.4Z" opacity=".55"/></svg>
-    <span>Insights</span>
-  </button>
-  <button class="tab" data-tab="activity">
-    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6h3v3H4V6Zm0 5h3v3H4v-3Zm0 5h3v3H4v-3Zm5-8h11v2H9V8Zm0 5h11v2H9v-2Zm0 5h11v2H9v-2Z"/></svg>
-    <span>Activity</span>
-  </button>
-</nav>
 
 <script>
 // Currency comes from the server (SITE_CURRENCY); these are rebuilt on load.
@@ -885,7 +902,8 @@ function makeCurrency(code, compact) {
 
 const PAGE_SIZE = 60;
 const STALE_MS = 60 * 1000;
-const state = { data: null, month: 'all', type: 'all', q: '', limit: PAGE_SIZE, loadedAt: 0 };
+const state = { data: null, month: 'all', type: 'all', q: '', limit: PAGE_SIZE, loadedAt: 0,
+                catPeriod: 'month', flowMode: 'both' };
 let flowChart, catChart;
 
 const $ = id => document.getElementById(id);
@@ -1059,19 +1077,25 @@ function renderBudgets() {
   });
 }
 
-function openSheet(acct) {
+function openSheet(acct, period) {
   if (!acct || !state.data) return;
   // Also reached from doughnut slices, most of which have no budget row. It
   // used to bail out here, so those slices were silently unclickable.
   const item = ((state.data.budgets || {}).items || []).find(i => i.account === acct);
   const label = item ? item.label : prettyCategory(acct);
   const month = (state.data.budgets || {}).month || state.data.month.key;
+  // Budget rows are always monthly; doughnut slices follow the card's toggle,
+  // so the list matches the figure that was clicked.
+  const prefix = period === 'all' ? '' : period === 'year' ? month.slice(0, 4) : month;
+  const periodLabel = period === 'all' ? 'total'
+    : period === 'year' ? month.slice(0, 4)
+    : ((state.data.budgets || {}).month_label || month);
   const cats = item && item.members && item.members.length ? item.members : [acct];
-  const txns = state.data.transactions.filter(t => t.type === 'expense' && t.date.startsWith(month) && t.accounts.some(a => cats.includes(a)));
+  const txns = state.data.transactions.filter(t => t.type === 'expense' && t.date.startsWith(prefix) && t.accounts.some(a => cats.includes(a)));
   const spent = txns.reduce((s, t) => s + t.amount, 0);
-  const budgetAmt = item ? item.budget : null;
+  const budgetAmt = period && period !== 'month' ? null : (item ? item.budget : null);
   document.getElementById('sheet-title').textContent = label;
-  let sub = `${cur.format(Math.abs(spent))} spent in ${month}`;
+  let sub = `${cur.format(Math.abs(spent))} spent in ${periodLabel}`;
   if (budgetAmt != null) sub += ` · budget ${cur.format(budgetAmt)}`;
   document.getElementById('sheet-sub').textContent = sub;
   document.getElementById('sheet-list').innerHTML = txns.length ? txns.map(t => {
@@ -1110,15 +1134,21 @@ function renderFlow() {
   const labels = months.map(m => fmtMonth(m.month, true));
   const income = months.map(m => m.income);
   const expenses = months.map(m => m.expenses);
+  // With one big income month the axis is set by income and the expense bars
+  // become unreadable, so "Expenses" drops the income series and lets the
+  // axis rescale to the range you actually want to compare.
+  const datasets = [
+    { label: 'Expenses', data: expenses, backgroundColor: cssVar('--red'), borderRadius: 7, maxBarThickness: 30 },
+  ];
+  if (state.flowMode !== 'expenses') {
+    datasets.unshift({ label: 'Income', data: income, backgroundColor: cssVar('--green'), borderRadius: 7, maxBarThickness: 30 });
+  }
   const tick = cssVar('--secondary'), grid = cssVar('--chart-grid');
   const ctx = $('flowChart');
   if (flowChart) flowChart.destroy();
   flowChart = new Chart(ctx, {
     type: 'bar',
-    data: { labels, datasets: [
-      { label: 'Income', data: income, backgroundColor: cssVar('--green'), borderRadius: 7, maxBarThickness: 30 },
-      { label: 'Expenses', data: expenses, backgroundColor: cssVar('--red'), borderRadius: 7, maxBarThickness: 30 },
-    ]},
+    data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
@@ -1143,13 +1173,21 @@ function compactAmount(v) {
   return String(v);
 }
 
+function catSourceFor(period) {
+  const d = state.data;
+  if (period === 'year') return { rows: d.expense_categories_year || [], label: d.year || '' };
+  if (period === 'all') return { rows: d.expense_categories_all || [], label: 'All time' };
+  return { rows: d.expense_categories || [], label: (d.budgets || {}).month_label || '' };
+}
+
 function renderCats() {
-  if (typeof Chart === 'undefined') return chartsUnavailable('catChart', 'Charts couldn’t load — see Budgets above for this month’s categories.');
-  if (!state.data.expense_categories.length) return chartsUnavailable('catChart', 'No spending recorded yet.');
+  if (typeof Chart === 'undefined') return chartsUnavailable('catChart', 'Charts couldn\u2019t load \u2014 see Budgets above for this month\u2019s categories.');
+  const { rows, label } = catSourceFor(state.catPeriod);
+  $('cat-month').textContent = label;
+  if (!rows.length) return chartsUnavailable('catChart', 'No spending recorded in this period.');
   chartsAvailable('catChart');
-  const cats = state.data.expense_categories.slice(0, 9);
-  const other = state.data.expense_categories.slice(9).reduce((s, c) => s + c.amount, 0);
-  $('cat-month').textContent = (state.data.budgets || {}).month_label || '';
+  const cats = rows.slice(0, 9);
+  const other = rows.slice(9).reduce((s, c) => s + c.amount, 0);
   const labelMap = {};
   ((state.data.budgets || {}).items || []).forEach(i => { labelMap[i.account] = i.label; });
   // Budgeted categories carry a configured label; the rest fell through as the
@@ -1160,15 +1198,23 @@ function renderCats() {
   if (other > 0) { labels.push('Other'); catKeys.push(null); values.push(Math.round(other * 100) / 100); }
   const tick = cssVar('--secondary');
   const ctx = $('catChart');
+  const openSlice = i => { if (catKeys[i]) openSheet(catKeys[i], state.catPeriod); };
   if (catChart) catChart.destroy();
   catChart = new Chart(ctx, {
     type: 'doughnut',
     data: { labels, datasets: [{ data: values, backgroundColor: cssVar('--palette').split(',').map(s => s.trim()), borderColor: cssVar('--dot-border'), borderWidth: 3 }] },
     options: {
       responsive: true, maintainAspectRatio: false, cutout: '64%',
-      onClick: (evt, els) => { if (els.length && catKeys[els[0].index]) openSheet(catKeys[els[0].index]); },
+      onClick: (evt, els) => { if (els.length) openSlice(els[0].index); },
       plugins: {
-        legend: { position: 'bottom', labels: { color: tick, usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, padding: 10, font: { size: 11 } } },
+        legend: {
+          position: 'bottom',
+          // Chart.js defaults legend clicks to hiding the slice, so tapping a
+          // category name made it vanish instead of opening it. Same action as
+          // clicking the arc now.
+          onClick: (evt, item) => openSlice(item.index),
+          labels: { color: tick, usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8, padding: 10, font: { size: 11 } },
+        },
         tooltip: { callbacks: { label: c => ' ' + c.label + ': ' + cur.format(c.parsed) } },
       },
     },
@@ -1303,8 +1349,11 @@ function renderTxns() {
     : `${rows.length} of ${total}`;
 
   body.innerHTML = rows.slice(0, shown).map((t, i) => {
-    const cls = t.type === 'transfer' ? 'transfer' : (t.amount > 0 ? 'pos' : (t.amount < 0 ? 'neg' : 'transfer'));
-    const sign = t.type === 'transfer' ? '' : (t.amount >= 0 ? '+' : '−');
+    const isTransfer = t.type === 'transfer';
+    const cls = isTransfer ? 'transfer' : (t.amount > 0 ? 'pos' : (t.amount < 0 ? 'neg' : 'transfer'));
+    // Transfers are neither income nor spending, so they carry no +/-. Without
+    // a marker the bare grey figure just looks like the sign failed to render.
+    const sign = isTransfer ? '<span class="xfer" title="Transfer between your own accounts">⇄</span>' : (t.amount >= 0 ? '+' : '−');
     const name = esc(t.description || '(no description)');
     const btn = (act, label, icon) =>
       `<button class="mini-btn" data-i="${i}" data-act="${act}" title="${label} ${name}" aria-label="${label} ${name}">${icon}</button>`;
@@ -1317,7 +1366,7 @@ function renderTxns() {
       <div class="txn-amt amt ${cls}">${sign}${cur.format(Math.abs(t.amount))}</div>
       <div class="txn-act">
         ${btn('edit', 'Edit', ICON_EDIT)}
-        ${t.type === 'expense' ? btn('amortize', 'Split over months', ICON_SPLIT) : ''}
+        ${t.type === 'expense' ? btn('amortize', 'Split over months', ICON_SPLIT) : '<span class="mini-btn-gap" aria-hidden="true"></span>'}
         ${btn('delete', 'Delete', ICON_DELETE)}
       </div>
     </div>`;
@@ -1551,6 +1600,22 @@ $('txn-more-btn').addEventListener('click', () => {
   state.limit += PAGE_SIZE;
   renderTxns();
 });
+
+/* Chart toggles. Same segmented control as the Activity filters. */
+function wireSegmented(id, attr, apply) {
+  $(id).addEventListener('click', e => {
+    const btn = e.target.closest('.seg');
+    if (!btn) return;
+    $(id).querySelectorAll('.seg').forEach(x => {
+      const on = x === btn;
+      x.classList.toggle('active', on);
+      x.setAttribute('aria-pressed', String(on));
+    });
+    apply(btn.dataset[attr]);
+  });
+}
+wireSegmented('catPeriod', 'period', v => { state.catPeriod = v; if (state.data) safe(renderCats); });
+wireSegmented('flowMode', 'mode', v => { state.flowMode = v; if (state.data) safe(renderFlow); });
 
 $('budget-grid').addEventListener('click', e => {
   const row = e.target.closest('.budget-row');
