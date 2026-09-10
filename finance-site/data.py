@@ -284,7 +284,6 @@ def build_data(text: str, currency: str = "SGD", settings: dict | None = None,
     monthly: dict[str, dict] = defaultdict(
         lambda: {"income": 0.0, "expenses": 0.0, "excluded": 0.0, "net_change": 0.0})
     monthly_cats: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
-    expense_cats: dict[str, float] = defaultdict(float)
     monthly_income: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
     tx_view = []
 
@@ -326,7 +325,6 @@ def build_data(text: str, currency: str = "SGD", settings: dict | None = None,
             if p["account"].startswith("expenses:"):
                 if is_excluded(p["account"]):
                     continue
-                expense_cats[p["account"]] += p["amount"]
                 monthly_cats[month][p["account"]] += p["amount"]
             elif p["account"].startswith("income:"):
                 monthly_income[month][p["account"]] += abs(p["amount"])
@@ -398,7 +396,10 @@ def build_data(text: str, currency: str = "SGD", settings: dict | None = None,
              "excluded": round(monthly[m].get("excluded", 0.0), 2)}
             for m in months if m <= this_month
         ],
-        "expense_categories": by_magnitude(expense_cats),
+        # Scoped to this month, matching the budgets, the income sources card
+        # and the drill-down sheet. It used to be an all-time total, so a slice
+        # opened a sheet listing only this month's transactions for it.
+        "expense_categories": by_magnitude(budget_cats),
         "income_categories": by_magnitude(monthly_income.get(this_month, {})),
         "budgets": {
             "month": budget_month,

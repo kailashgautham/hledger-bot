@@ -757,7 +757,7 @@
 
     <div class="grid">
       <div class="card glass"><div class="card-title">Cash flow</div><div class="chart-box"><canvas id="flowChart"></canvas></div></div>
-      <div class="card glass"><div class="card-title">Spending by category</div><div class="chart-box"><canvas id="catChart"></canvas></div></div>
+      <div class="card glass"><div class="card-title">Spending by category <span class="card-title-sub" id="cat-month"></span></div><div class="chart-box"><canvas id="catChart"></canvas></div></div>
     </div>
 
     <div class="split">
@@ -1060,14 +1060,16 @@ function renderBudgets() {
 }
 
 function openSheet(acct) {
+  if (!acct || !state.data) return;
+  // Also reached from doughnut slices, most of which have no budget row. It
+  // used to bail out here, so those slices were silently unclickable.
   const item = ((state.data.budgets || {}).items || []).find(i => i.account === acct);
-  if (!item) return;
-  const label = item.label;
+  const label = item ? item.label : prettyCategory(acct);
   const month = (state.data.budgets || {}).month || state.data.month.key;
-  const cats = item.members && item.members.length ? item.members : [acct];
+  const cats = item && item.members && item.members.length ? item.members : [acct];
   const txns = state.data.transactions.filter(t => t.type === 'expense' && t.date.startsWith(month) && t.accounts.some(a => cats.includes(a)));
   const spent = txns.reduce((s, t) => s + t.amount, 0);
-  const budgetAmt = item.budget;
+  const budgetAmt = item ? item.budget : null;
   document.getElementById('sheet-title').textContent = label;
   let sub = `${cur.format(Math.abs(spent))} spent in ${month}`;
   if (budgetAmt != null) sub += ` · budget ${cur.format(budgetAmt)}`;
@@ -1147,9 +1149,12 @@ function renderCats() {
   chartsAvailable('catChart');
   const cats = state.data.expense_categories.slice(0, 9);
   const other = state.data.expense_categories.slice(9).reduce((s, c) => s + c.amount, 0);
+  $('cat-month').textContent = (state.data.budgets || {}).month_label || '';
   const labelMap = {};
   ((state.data.budgets || {}).items || []).forEach(i => { labelMap[i.account] = i.label; });
-  const labels = cats.map(c => labelMap[c.account] || c.account.replace('expenses:', ''));
+  // Budgeted categories carry a configured label; the rest fell through as the
+  // raw lowercase account, so the legend read "Food, Entertainment, health, tech".
+  const labels = cats.map(c => labelMap[c.account] || prettyCategory(c.account));
   const catKeys = cats.map(c => c.account);
   const values = cats.map(c => c.amount);
   if (other > 0) { labels.push('Other'); catKeys.push(null); values.push(Math.round(other * 100) / 100); }
@@ -1266,6 +1271,12 @@ function defaultOffset(accounts) {
 
 function defaultCategory(accounts) {
   return accounts.find(a => a.startsWith('expenses:')) || accounts[0] || '';
+}
+
+/* "expenses:health" -> "Health", to match the configured budget labels. */
+function prettyCategory(account) {
+  return String(account).replace(/^expenses:/, '')
+    .split(':').map(s => s ? s[0].toUpperCase() + s.slice(1) : s).join(':');
 }
 
 /* Chips repeat the same top-level prefix on every row; the leaf is what
