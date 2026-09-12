@@ -188,6 +188,14 @@
     animation: popIn .3s var(--ease);
   }
   .toasts .pop.err { background: var(--tone-bad); border-color: rgba(255, 69, 58, 0.32); }
+  .toasts .pop:has(.pop-action) { display: flex; align-items: center; gap: 12px; text-align: left; }
+  .pop-action {
+    margin-left: auto; flex: none; pointer-events: auto; cursor: pointer;
+    border: none; background: transparent; color: var(--tint);
+    font: 600 14px var(--font); padding: 2px 4px; border-radius: 8px;
+  }
+  .pop-action:hover { text-decoration: underline; }
+  .toasts .pop { pointer-events: none; }
   .toasts .pop.leaving { animation: popOut .25s var(--ease) forwards; }
   @keyframes popIn { from { opacity: 0; transform: translateY(12px) scale(.97); } to { opacity: 1; transform: none; } }
   @keyframes popOut { to { opacity: 0; transform: translateY(8px) scale(.97); } }
@@ -1439,7 +1447,7 @@ async function openEditSheet(t) {
       });
       if (!r.success) throw new Error(r.message || 'Edit failed');
       closeSheet();
-      toast('Transaction updated');
+      toast('Transaction updated', null, UNDO_ACTION);
       load().catch(() => {});
     } catch (e) {
       $('ed-save').disabled = false;
@@ -1501,7 +1509,7 @@ function openAmortizeSheet(t) {
       });
       if (!r.success) throw new Error(r.message || 'Split failed');
       closeSheet();
-      toast(`Split over ${months} months`);
+      toast(`Split over ${months} months`, null, UNDO_ACTION);
       load().catch(() => {});
     } catch (e) {
       $('am-save').disabled = false;
@@ -1553,18 +1561,91 @@ function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
+/* ── Undo ─────────────────────────────────────────────
+   Every write commits and pushes immediately. The Telegram bot's /undo was
+   the only way back; the web UI had none, leaving git on the server as the
+   sole recovery path. This reverts the last journal commit — naming it first,
+   because reverting blind on a ledger is not acceptable. */
+const UNDO_ACTION = { label: 'Undo', run: () => openUndoSheet() };
+
+async function openUndoSheet() {
+  $('sheet-title').textContent = 'Undo last change?';
+  $('sheet-sub').textContent = '';
+  $('sheet-list').innerHTML = '<div class="wiz"><div class="progress"><i style="width:100%"></i></div>'
+    + '<p class="hint">Checking the last change…</p></div>';
+  openSheetEl();
+  let info;
+  try {
+    info = await api('/api/last-change');
+  } catch (e) {
+    $('sheet-list').innerHTML = `<div class="wiz"><div class="toast err">${esc(e.message)}</div>
+      <button class="btn ghost full" data-close="1">Close</button></div>`;
+    return;
+  }
+  if (!info.can_undo || !info.subject) {
+    $('sheet-list').innerHTML = `<div class="wiz"><div class="toast err">Couldn\u2019t read the journal\u2019s git history.${
+      info.message ? '<div class="muted">' + esc(info.message) + '</div>' : ''}</div>
+      <button class="btn ghost full" data-close="1">Close</button></div>`;
+    return;
+  }
+  $('sheet-sub').textContent = 'This writes a revert commit and pushes it.';
+  $('sheet-list').innerHTML = `
+    <div class="wiz">
+      <div class="kv"><span class="k">Last change</span><span class="v">${esc(info.subject)}</span></div>
+      <div class="kv"><span class="k">When</span><span class="v">${esc(fmtWhen(info.date))}</span></div>
+      ${info.is_revert ? '<p class="hint">This change was itself an undo, so this would undo the undo.</p>' : ''}
+      <p class="hint">Nothing is lost either way — the revert is a new commit, so the
+        original stays in your git history.</p>
+      <p class="hint sheet-err" id="undo-err" hidden></p>
+      <button class="btn danger full" id="undo-ok">Undo this change</button>
+      <button class="btn ghost full" data-close="1">Keep it</button>
+    </div>`;
+  $('undo-ok').addEventListener('click', async () => {
+    $('undo-ok').disabled = true;
+    $('undo-ok').textContent = 'Undoing…';
+    try {
+      const r = await api('/api/undo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      if (!r.success) throw new Error(r.message || 'Undo failed');
+      closeSheet();
+      toast(r.message ? 'Undone · ' + r.message : 'Change undone');
+      load().catch(() => {});
+    } catch (e) {
+      $('undo-ok').disabled = false;
+      $('undo-ok').textContent = 'Undo this change';
+      const el = $('undo-err');
+      el.textContent = e.message;
+      el.hidden = false;
+    }
+  });
+}
+
+function fmtWhen(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return iso || 'unknown';
+  return new Intl.DateTimeFormat('en-SG', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(d);
+}
+
 /* ── Toasts ───────────────────────────────────────── */
-function toast(message, kind) {
+function toast(message, kind, action) {
   const pop = document.createElement('div');
   pop.className = 'pop' + (kind === 'err' ? ' err' : '');
   pop.setAttribute('role', kind === 'err' ? 'alert' : 'status');
   pop.textContent = message;
+  if (action) {
+    const btn = document.createElement('button');
+    btn.className = 'pop-action';
+    btn.textContent = action.label;
+    btn.addEventListener('click', () => { pop.remove(); action.run(); });
+    pop.appendChild(btn);
+  }
   $('toasts').appendChild(pop);
   setTimeout(() => {
     pop.classList.add('leaving');
     pop.addEventListener('animationend', () => pop.remove(), { once: true });
     setTimeout(() => pop.remove(), 600);
-  }, kind === 'err' ? 5000 : 3000);
+    // An action needs long enough to notice and reach for; a plain
+    // confirmation does not.
+  }, action ? 9000 : kind === 'err' ? 5000 : 3000);
 }
 
 /* ── Filters ──────────────────────────────────────── */
@@ -1677,7 +1758,7 @@ function openDeleteSheet(t) {
       });
       if (!r.success) throw new Error(r.message || 'Delete failed');
       closeSheet();
-      toast('Transaction deleted');
+      toast('Transaction deleted', null, UNDO_ACTION);
       load().catch(() => {});
     } catch (err) {
       $('del-ok').disabled = false;
@@ -1922,7 +2003,7 @@ $('btn-add').addEventListener('click', async () => {
       });
       if (!r.success) throw new Error(r.message || 'Add failed');
       closeSheet();
-      toast('Transaction added');
+      toast('Transaction added', null, UNDO_ACTION);
       load().catch(() => {});
     } catch (e) {
       $('add-save').disabled = false;

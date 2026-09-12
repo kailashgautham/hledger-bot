@@ -126,10 +126,15 @@ form.addEventListener('submit', async (e) => {
     });
     if (res.ok) { window.location.href = '/'; return; }
     // Distinguish "wrong password" from "the server is unhappy" — retrying
-    // your password does nothing about a 500.
-    fail(res.status === 401
-      ? 'Incorrect username or password.'
-      : `Sign in failed (server returned ${res.status}).`, pass);
+    // your password does nothing about a 500, and a lockout needs to say so
+    // rather than look like the password is still wrong.
+    if (res.status === 429) {
+      fail(await res.text().catch(() => 'Too many attempts. Try again shortly.'));
+    } else {
+      fail(res.status === 401
+        ? 'Incorrect username or password.'
+        : `Sign in failed (server returned ${res.status}).`, pass);
+    }
   } catch (_) {
     fail('Can’t reach the server. Check your connection and try again.');
   }

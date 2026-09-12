@@ -527,3 +527,35 @@ def tx_amortize(data: dict) -> dict:
     files = [str(journal_path.relative_to(jdir))]
     success, err = git_ops.commit_and_push(f"Amortize transaction {date_str}", files)
     return {"success": success, "message": err or None}
+
+
+def last_change() -> dict:
+    """Describe the most recent journal commit, so undo can say what it targets.
+
+    Reverting blind is unacceptable on a ledger — the button has to name the
+    commit it will undo. A revert is itself a commit, so an already-undone
+    change is reported as such rather than offering to undo the undo.
+    """
+    try:
+        import git  # imported lazily; only this endpoint needs it
+
+        repo = git.Repo(str(journal_dir(config)))
+        head = repo.head.commit
+        subject = head.message.splitlines()[0].strip()
+        return {
+            "subject": subject,
+            "date": head.committed_datetime.isoformat(),
+            "is_revert": subject.startswith('Revert "'),
+            "can_undo": True,
+        }
+    except Exception as exc:
+        logger.warning("could not read last commit: %s", exc)
+        return {"subject": None, "can_undo": False, "message": str(exc)}
+
+
+def undo_last_change() -> dict:
+    """git revert HEAD on the journal repo, then push."""
+    success, err = git_ops.revert_last_commit()
+    if not success:
+        return {"success": False, "message": err or "Revert failed."}
+    return {"success": True, "message": err or None}

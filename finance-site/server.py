@@ -29,7 +29,12 @@ PORT = int(os.environ.get("PORT", "8080"))
 HLEDGER_PATH = Path(os.environ.get("HLEDGER_PATH", "/finance/journal.hledger"))
 SITE_USER = os.environ.get("SITE_USER", "")
 SITE_PASS = os.environ.get("SITE_PASS", "")
-SITE_SECRET = os.environ.get("SITE_SECRET", "") or secrets.token_hex(16)
+# Without a stable secret every restart invalidates all sessions, so warn
+# rather than silently logging the user out on each deploy.
+SITE_SECRET = os.environ.get("SITE_SECRET", "")
+if not SITE_SECRET:
+    SITE_SECRET = secrets.token_hex(16)
+    logging.warning("SITE_SECRET is not set; sessions will not survive a restart")
 CURRENCY = os.environ.get("SITE_CURRENCY", "SGD")
 SITE_NAME = os.environ.get("SITE_NAME", "")
 SESSION_TTL = 60 * 60 * 24 * 30  # 30 days
@@ -40,6 +45,57 @@ if not SITE_USER or not SITE_PASS:
 
 _lock = threading.Lock()
 _cache: dict = {"mtime": None, "data": None}
+
+# Failed-login throttling. The login endpoint is reachable pre-auth from the
+# internet, and nothing previously slowed down a password guessing loop.
+# Sized for a single-user dashboard: still far too slow to guess a real
+# password (10 tries per 5 minutes), but a genuine typo lockout clears while
+# you are still looking at the screen rather than a quarter of an hour later.
+LOGIN_MAX_FAILURES = 10
+LOGIN_WINDOW = 5 * 60
+_login_lock = threading.Lock()
+_login_failures: dict = {}
+
+
+def _login_retry_after(ip: str) -> int:
+    """Seconds until this address may try again; 0 when it is not blocked."""
+    with _login_lock:
+        now = time.time()
+        hits = [t for t in _login_failures.get(ip, []) if now - t < LOGIN_WINDOW]
+        _login_failures[ip] = hits
+        if len(hits) < LOGIN_MAX_FAILURES:
+            return 0
+        return max(1, int(LOGIN_WINDOW - (now - min(hits))))
+
+
+def _record_login_failure(ip: str) -> None:
+    with _login_lock:
+        _login_failures.setdefault(ip, []).append(time.time())
+        # Bound the dict so a spray across many source addresses cannot grow it
+        # without limit.
+        if len(_login_failures) > 2048:
+            cutoff = time.time() - LOGIN_WINDOW
+            for k in [k for k, v in _login_failures.items() if not any(t > cutoff for t in v)]:
+                _login_failures.pop(k, None)
+
+
+def _clear_login_failures(ip: str) -> None:
+    with _login_lock:
+        _login_failures.pop(ip, None)
+
+
+def _constant_time_equals(candidate, expected: str) -> bool:
+    """compare_digest raises TypeError on non-str or non-ASCII input, and the
+    login handler did not guard it — so a JSON body of {"user": 123} produced
+    an unhandled exception instead of a 401."""
+    if not isinstance(candidate, str):
+        return False
+    try:
+        return hmac.compare_digest(candidate, expected)
+    except TypeError:
+        # Non-ASCII cannot match an ASCII secret; compare encoded bytes so the
+        # timing profile stays flat rather than returning early.
+        return hmac.compare_digest(candidate.encode("utf-8"), expected.encode("utf-8"))
 
 
 def _mtime(path: Path) -> float:
@@ -68,7 +124,7 @@ def authorized(headers) -> bool:
         user, _, passwd = base64.b64decode(header[6:]).decode().partition(":")
     except Exception:
         return False
-    return hmac.compare_digest(user, SITE_USER) and hmac.compare_digest(passwd, SITE_PASS)
+    return _constant_time_equals(user, SITE_USER) and _constant_time_equals(passwd, SITE_PASS)
 
 
 def session_token() -> str:
@@ -105,11 +161,18 @@ class Handler(BaseHTTPRequestHandler):
     def _authed(self) -> bool:
         return authorized(self.headers) or valid_session(self.headers.get("Cookie", ""))
 
+    def _security_headers(self) -> None:
+        """Defence in depth for a publicly reachable finance dashboard."""
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "same-origin")
+
     def _send(self, code: int, body: bytes, ctype: str) -> None:
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-cache")
+        self._security_headers()
         self.end_headers()
         self.wfile.write(body)
 
@@ -130,16 +193,31 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(raw) if raw else {}
         except Exception:
             data = {}
+        ip = self.client_address[0] if self.client_address else "?"
+        retry_after = _login_retry_after(ip)
+        if retry_after:
+            mins = max(1, round(retry_after / 60))
+            self.send_response(429)
+            body = f"Too many attempts. Try again in about {mins} minute{'' if mins == 1 else 's'}.".encode()
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Retry-After", str(retry_after))
+            self._security_headers()
+            self.end_headers()
+            self.wfile.write(body)
+            return
         user = data.get("user", "")
         passwd = data.get("pass", "")
-        if (hmac.compare_digest(user, SITE_USER)
-                and hmac.compare_digest(passwd, SITE_PASS)):
+        if (_constant_time_equals(user, SITE_USER)
+                and _constant_time_equals(passwd, SITE_PASS)):
+            _clear_login_failures(ip)
             self.send_response(303)
             self.send_header("Location", "/")
-            self.send_header("Set-Cookie", f"{COOKIE_NAME}={session_token()}; HttpOnly; SameSite=Lax; Path=/; Max-Age={SESSION_TTL}")
+            self.send_header("Set-Cookie", f"{COOKIE_NAME}={session_token()}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age={SESSION_TTL}")
             self.send_header("Content-Length", "0")
             self.end_headers()
         else:
+            _record_login_failure(ip)
             self._send(401, b"bad credentials", "text/plain")
 
     # ------------------------------------------------------------------
@@ -259,6 +337,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/reconcile":
             self._json(workflows.reconcile_accounts())
             return
+        if self.path == "/api/last-change":
+            self._json(workflows.last_change())
+            return
         if self.path in ("/", "/index.html"):
             body = (Path(__file__).parent / "index.html").read_bytes()
             self._send(200, body, "text/html; charset=utf-8")
@@ -302,6 +383,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/txn/amortize":
             self._json_post(lambda d: workflows.tx_amortize(d))
+            return
+        if self.path == "/api/undo":
+            self._json_post(lambda d: workflows.undo_last_change())
             return
         self._send(404, b"not found", "text/plain")
 
