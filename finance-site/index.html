@@ -658,6 +658,23 @@
   .wiz { display: flex; flex-direction: column; gap: 14px; }
   .wiz .hint { font-size: 13px; color: var(--secondary); line-height: 1.5; }
   .wiz .muted { font-size: 12px; color: var(--tertiary); margin-top: 4px; }
+
+  /* Why a category got picked for you, and the offer to remember one.
+     Deliberately not flex: each run of text around <b> would become its own
+     flex item and pick up the gap, printing "Matched your  GRAB  rule". */
+  .rule-note { font-size: 12px; color: var(--tertiary); margin-top: -2px; line-height: 1.45; }
+  .rule-note b { color: var(--tint); font-weight: 600; }
+  .checkrow {
+    display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
+    padding: 11px 13px; border-radius: var(--r-sm);
+    background: var(--input-fill); border: 1px solid var(--glass-border);
+    font-size: 13px; color: var(--secondary); line-height: 1.45;
+  }
+  .checkrow input { flex: none; margin: 2px 0 0; width: 16px; height: 16px; accent-color: var(--tint); }
+  .checkrow code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px; color: var(--text); overflow-wrap: anywhere;
+  }
   .pick {
     border: 2px dashed var(--glass-border); border-radius: var(--r-lg);
     padding: 34px 20px; text-align: center; cursor: pointer;
@@ -1423,6 +1440,22 @@ function defaultCategory(accounts) {
   return accounts.find(a => a.startsWith('expenses:')) || accounts[0] || '';
 }
 
+/* The same rules imports use, applied to what you type by hand.
+
+   This must agree with MerchantMap.lookup() on the server or the two entry
+   paths would file the same shop differently: it returns the account of the
+   first pattern found anywhere in the uppercased description, and the file is
+   stored sorted, so patterns are tested in alphabetical order. Callers pass
+   rows from /api/merchants, which are already in that order. */
+function matchMerchantRule(description, rules) {
+  const desc = String(description || '').toUpperCase();
+  if (!desc) return null;
+  for (const r of rules) {
+    if (r.pattern && desc.includes(String(r.pattern).toUpperCase())) return r;
+  }
+  return null;
+}
+
 /* "expenses:health" -> "Health", to match the configured budget labels. */
 function prettyCategory(account) {
   return String(account).replace(/^expenses:/, '')
@@ -2124,7 +2157,14 @@ $('btn-import').addEventListener('click', () => {
 // --- Add transaction ---
 $('btn-add').addEventListener('click', async () => {
   let accounts = [];
-  try { accounts = (await api('/api/accounts')).accounts || []; } catch (_) {}
+  let rules = [];
+  // Both in flight together: the sheet can't open until each has answered, and
+  // a missing rule list only costs the auto-fill, so it must not block the form.
+  const [accRes, ruleRes] = await Promise.allSettled([
+    api('/api/accounts'), api('/api/merchants'),
+  ]);
+  if (accRes.status === 'fulfilled') accounts = accRes.value.accounts || [];
+  if (ruleRes.status === 'fulfilled') rules = ruleRes.value.merchants || [];
   const allOpts = accountOptions(accounts);
   const today = new Date().toISOString().slice(0, 10);
   $('sheet-title').textContent = 'Add transaction';
@@ -2146,17 +2186,59 @@ $('btn-add').addEventListener('click', async () => {
       <div class="field-row"><label for="add-amt">Amount</label>
         <input class="input" id="add-amt" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00"></div>
       <div class="field-row"><label for="add-acc">Category</label>
-        <select class="input" id="add-acc">${allOpts}</select></div>
+        <select class="input" id="add-acc">${allOpts}</select>
+        <p class="rule-note" id="add-rule" hidden></p></div>
       <div class="field-row"><label for="add-off">Paid from</label>
         <select class="input" id="add-off">${allOpts}</select></div>
       <div class="field-row"><label for="add-date">Date</label>
         <input class="input" id="add-date" type="date" value="${today}"></div>
+      <label class="checkrow" id="add-remember-row" hidden>
+        <input type="checkbox" id="add-remember">
+        <span>Remember this, so imports file <code id="add-remember-pat"></code> here too</span>
+      </label>
       <p class="sheet-err" id="add-err" hidden></p>
       <button class="btn primary full" id="add-save">Add</button>
       <button class="btn ghost full" data-close="1">Cancel</button>
     </div>`;
-  $('add-acc').value = defaultCategory(accounts);
+  const fallbackCategory = defaultCategory(accounts);
+  $('add-acc').value = fallbackCategory;
   $('add-off').value = defaultOffset(accounts);
+
+  /* Auto-categorise as you type, using the rules imports already use —
+     otherwise typing "Grab" by hand lands in whatever sorts first while
+     importing the same line files it correctly.
+
+     Only ever overwrite a category we chose ourselves: once you touch the
+     dropdown, your choice wins and the next keystroke must not undo it. */
+  let picked = false;
+  $('add-acc').addEventListener('change', () => { picked = true; syncRule(); });
+
+  function syncRule() {
+    const desc = $('add-desc').value.trim();
+    const matched = matchMerchantRule(desc, rules);
+    const usable = matched && accounts.includes(matched.account);
+    const note = $('add-rule');
+    /* A rule whose account has since left the journal falls back like no match
+       at all. Leaving the dropdown alone would strand it on whatever the
+       previous description matched — a silent wrong category, which is worse
+       than an obvious default. The note below still says what happened. */
+    if (!picked) $('add-acc').value = usable ? matched.account : fallbackCategory;
+
+    if (matched && !picked) {
+      note.innerHTML = `Matched your <b>${esc(matched.pattern)}</b> rule`
+        + (usable ? '' : ` — but ${esc(matched.account)} isn’t in your journal`);
+      note.hidden = false;
+    } else {
+      note.hidden = true;
+    }
+
+    // Offering to remember only makes sense for a description no rule covers.
+    const offer = !matched && desc.length >= 3;
+    $('add-remember-row').hidden = !offer;
+    if (offer) $('add-remember-pat').textContent = desc.toUpperCase();
+    else $('add-remember').checked = false;
+  }
+  $('add-desc').addEventListener('input', syncRule);
   if (recents.length) {
     $('add-recents').addEventListener('click', e => {
       const chip = e.target.closest('.recent');
@@ -2166,8 +2248,10 @@ $('btn-add').addEventListener('click', async () => {
       $('add-amt').value = r.amount.toFixed(2);
       // Only select accounts the list actually offers, so a stale template
       // can't silently leave the dropdown on something unrelated.
-      if (r.category && accounts.includes(r.category)) $('add-acc').value = r.category;
+      if (r.category && accounts.includes(r.category)) { $('add-acc').value = r.category; picked = true; }
       if (r.offset && accounts.includes(r.offset)) $('add-off').value = r.offset;
+      // How you filed it last time beats a generic rule, so picked stays set.
+      syncRule();
       $('add-recents').querySelectorAll('.recent').forEach(c => c.classList.toggle('on', c === chip));
       $('add-amt').focus();
       $('add-amt').select();
@@ -2190,6 +2274,21 @@ $('btn-add').addEventListener('click', async () => {
     }
     $('add-save').disabled = true;
     $('add-save').textContent = 'Adding…';
+    /* The rule goes first, deliberately. Both writes commit and push, and the
+       Undo offered below reverts whichever commit landed last — so saving the
+       rule afterwards would leave Undo pointing at the rule instead of the
+       transaction you just added. A rule that fails is reported but never
+       blocks the transaction, which is what you actually came here to do. */
+    let ruleErr = '';
+    if (!$('add-remember-row').hidden && $('add-remember').checked) {
+      try {
+        const m = await api('/api/merchants/set', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pattern: payload.description, account: payload.account }),
+        });
+        if (!m.success) ruleErr = m.message || 'the rule could not be saved';
+      } catch (e) { ruleErr = e.message; }
+    }
     try {
       const r = await api('/api/txn/add', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2197,7 +2296,7 @@ $('btn-add').addEventListener('click', async () => {
       });
       if (!r.success) throw new Error(r.message || 'Add failed');
       closeSheet();
-      toast('Transaction added', null, UNDO_ACTION);
+      toast(ruleErr ? `Added, but ${ruleErr}` : 'Transaction added', null, UNDO_ACTION);
       load().catch(() => {});
     } catch (e) {
       $('add-save').disabled = false;
