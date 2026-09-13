@@ -170,7 +170,14 @@ def _month_label(key: str) -> str:
 
 
 def _fmt(v: float, currency: str = "SGD") -> str:
-    return f"{currency} {v:,.2f}"
+    """Emit a placeholder instead of a formatted amount.
+
+    The insight bodies are prose with figures embedded. Formatting them here
+    produced "SGD 3,657.13" while every other number on the page came from
+    Intl.NumberFormat as "$3,657.13". The client substitutes these, so one
+    formatter owns every amount and the two can never drift apart.
+    """
+    return f"{{{{amt:{v:.2f}}}}}"
 
 
 def compute_insights(monthly, monthly_cats, tx_view, this_month,
@@ -257,7 +264,7 @@ def compute_insights(monthly, monthly_cats, tx_view, this_month,
         biggest = max(exps, key=lambda t: abs(t["amount"]))
         cards.append({"tone": "info",
                       "title": "Biggest purchase",
-                      "body": f"{biggest['description']} — {fmt(abs(biggest['amount']))} on {biggest['date']}."})
+                      "body": f"{biggest['description']} — {fmt(abs(biggest['amount']))} on {{{{date:{biggest['date']}}}}}."})
 
     return {
         "month": target,
@@ -366,6 +373,18 @@ def build_data(text: str, currency: str = "SGD", settings: dict | None = None,
         "members": sorted(others.keys()),
     })
 
+    # Net worth over time. Net worth is assets + liabilities, so running the
+    # per-month changes forward reconstructs the balance at each month end
+    # without needing a snapshot per month. The final point equals net_worth
+    # exactly when nothing is dated in the future.
+    running = 0.0
+    net_worth_series = []
+    for m in months:
+        if m > this_month:
+            continue
+        running += monthly[m]["net_change"]
+        net_worth_series.append({"month": m, "value": round(running, 2)})
+
     # Year-to-date and all-time category totals, rolled up from the same
     # per-month figures so every period agrees with the monthly one.
     year_cats: dict[str, float] = defaultdict(float)
@@ -412,6 +431,7 @@ def build_data(text: str, currency: str = "SGD", settings: dict | None = None,
         ],
         # Three periods for the category breakdown; the card toggles between
         # them and the drill-down sheet filters to whichever is selected.
+        "net_worth_series": net_worth_series,
         "expense_categories": by_magnitude(budget_cats),
         "expense_categories_year": by_magnitude(year_cats),
         "expense_categories_all": by_magnitude(all_cats),

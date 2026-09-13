@@ -261,6 +261,9 @@
   .card-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
   .card-head .card-title { flex: 1 1 auto; min-width: 0; }
   .card-head .segmented { flex: none; margin-bottom: 12px; }
+  .trend-delta { flex: none; margin-bottom: 12px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .trend-delta.up { color: var(--green); }
+  .trend-delta.down { color: var(--red); }
   .segmented.mini .seg { padding: 5px 10px; font-size: 11px; }
   .card-title-sub { color: var(--tertiary); font-size: 11px; font-weight: 600; margin-left: 6px; }
   .chart-box { position: relative; height: 260px; min-width: 0; overflow: hidden; }
@@ -842,6 +845,13 @@
       <span>Monthly insights</span>
       <span class="sub" id="insights-month"></span>
     </div>
+    <div class="card glass" style="margin-bottom:18px">
+      <div class="card-head">
+        <div class="card-title">Net worth over time <span class="card-title-sub" id="trend-range"></span></div>
+        <div class="trend-delta" id="trend-delta"></div>
+      </div>
+      <div class="chart-box"><canvas id="trendChart"></canvas></div>
+    </div>
     <div class="insights-grid" id="insights-grid"></div>
     <div class="section-label" style="margin-top:26px"><span>Summary</span></div>
     <div class="card glass"><div id="insights-summary" style="font-size:15px;font-weight:600;letter-spacing:-0.01em"></div></div>
@@ -936,7 +946,7 @@ const PAGE_SIZE = 60;
 const STALE_MS = 60 * 1000;
 const state = { data: null, month: 'all', type: 'all', q: '', limit: PAGE_SIZE, loadedAt: 0,
                 catPeriod: 'month', flowMode: 'both' };
-let flowChart, catChart;
+let flowChart, catChart, trendChart;
 
 const $ = id => document.getElementById(id);
 function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
@@ -1052,6 +1062,7 @@ function render() {
   safe(renderTxns);
   safe(renderFlow);
   safe(renderCats);
+  safe(renderTrend);
 }
 
 /* Show a message in place of a chart without destroying the canvas, so the
@@ -1155,7 +1166,7 @@ function renderInsights() {
   document.getElementById('insights-summary').textContent =
     `${cur.format(ins.spent)} spent · ~${cur.format(ins.daily_avg)}/day · ${ins.count} transactions`;
   grid.innerHTML = ins.cards.map(c =>
-    `<div class="insight ${c.tone}"><h4><span class="dot"></span>${esc(c.title)}</h4><p>${esc(c.body)}</p></div>`).join('');
+    `<div class="insight ${c.tone}"><h4><span class="dot"></span>${withAmounts(esc(c.title))}</h4><p>${withAmounts(esc(c.body))}</p></div>`).join('');
 }
 
 function renderFlow() {
@@ -1210,6 +1221,67 @@ function catSourceFor(period) {
   if (period === 'year') return { rows: d.expense_categories_year || [], label: d.year || '' };
   if (period === 'all') return { rows: d.expense_categories_all || [], label: 'All time' };
   return { rows: d.expense_categories || [], label: (d.budgets || {}).month_label || '' };
+}
+
+/* Insight prose carries {{amt:1234.56}} placeholders so the client formats
+   every figure with the same formatter as the rest of the page. */
+function withAmounts(text) {
+  return String(text)
+    .replace(/\{\{amt:(-?\d+(?:\.\d+)?)\}\}/g, (_, n) => cur.format(Number(n)))
+    .replace(/\{\{date:(\d{4}-\d{2}-\d{2})\}\}/g, (_, d) => fmtDate(d));
+}
+
+function renderTrend() {
+  const rows = (state.data.net_worth_series || []);
+  if (typeof Chart === 'undefined') return chartsUnavailable('trendChart', 'Charts couldn\u2019t load.');
+  if (rows.length < 2) return chartsUnavailable('trendChart', 'Not enough history yet — this needs at least two months.');
+  chartsAvailable('trendChart');
+
+  const first = rows[0].value, last = rows[rows.length - 1].value;
+  const delta = last - first;
+  $('trend-range').textContent = `${fmtMonth(rows[0].month, true)} – ${fmtMonth(rows[rows.length - 1].month, true)}`;
+  const el = $('trend-delta');
+  el.textContent = (delta >= 0 ? '+' : '−') + cur.format(Math.abs(delta));
+  el.className = 'trend-delta ' + (delta > 0 ? 'up' : delta < 0 ? 'down' : '');
+
+  // Colour the line by direction over the whole span, so a shrinking net
+  // worth is obvious without reading the axis.
+  const stroke = cssVar(delta < 0 ? '--red' : '--green');
+  const tick = cssVar('--secondary'), grid = cssVar('--chart-grid');
+  const ctx = $('trendChart');
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: rows.map(r => fmtMonth(r.month, true)),
+      datasets: [{
+        label: 'Net worth',
+        data: rows.map(r => r.value),
+        borderColor: stroke,
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        tension: 0.3,
+        pointRadius: rows.length > 24 ? 0 : 3,
+        pointBackgroundColor: stroke,
+        pointBorderColor: cssVar('--dot-border'),
+        pointBorderWidth: 2,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ' ' + cur.format(c.parsed.y) } },
+      },
+      scales: {
+        x: { ticks: { color: tick, maxRotation: 0, autoSkipPadding: 12 }, grid: { color: 'transparent' }, border: { color: grid } },
+        // Net worth rarely starts at zero, so let the axis frame the range
+        // instead of flattening the line against the top of the box.
+        y: { beginAtZero: false, ticks: { color: tick, callback: v => compactAmount(v) }, grid: { color: grid }, border: { display: false } },
+      },
+    },
+  });
 }
 
 function renderCats() {
@@ -1970,7 +2042,7 @@ document.querySelectorAll('.stat[data-jump]').forEach(el => el.addEventListener(
 
 matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
   if (!state.data) return;
-  safe(renderFlow); safe(renderCats);
+  safe(renderFlow); safe(renderCats); safe(renderTrend);
 });
 
 /* ── Keeping data fresh ───────────────────────────── */

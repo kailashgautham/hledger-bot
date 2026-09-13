@@ -116,8 +116,9 @@ def test_savings_still_nets_off_tax():
     cards = d["insights"]["cards"]
     savings = [c for c in cards if "saved" in c["body"] or "left over" in c["body"]]
     assert savings, [c["title"] for c in cards]
-    # 5000 income - 20 spend - 1000 tax = 3980 saved, not 4980
-    assert "3,980.00" in savings[0]["body"], savings[0]["body"]
+    # 5000 income - 20 spend - 1000 tax = 3980 saved, not 4980.
+    # Amounts are placeholders now; the client formats them.
+    assert "{{amt:3980.00}}" in savings[0]["body"], savings[0]["body"]
 
 
 def test_no_excluded_key_means_zero():
@@ -208,16 +209,63 @@ def test_bad_settings_fall_back_instead_of_crashing():
         assert load_settings(path)["budgets"] == {}
 
 
-def test_currency_flows_into_insight_text():
+def test_insight_amounts_are_placeholders_not_prefixed_text():
+    """Insight prose must not carry its own currency formatting.
+
+    It used to read "SGD 3,657.13" while every other figure on the page was
+    formatted by Intl as "$3,657.13". Amounts are now placeholders the client
+    substitutes, so one formatter owns all of them.
+    """
     d = build_data(journal(SALARY, LUNCH), "USD")
     assert d["currency"] == "USD"
     bodies = " ".join(c["body"] for c in d["insights"]["cards"])
-    assert "USD" in bodies and "SGD" not in bodies, bodies
+    assert "{{amt:" in bodies, bodies
+    for code in ("USD", "SGD"):
+        assert code not in bodies, (code, bodies)
 
 
 def test_name_is_passed_through():
     assert build_data(journal(LUNCH), "SGD", None, "Ada")["name"] == "Ada"
     assert build_data(journal(LUNCH))["name"] == ""
+
+
+def test_net_worth_series_ends_at_current_net_worth():
+    """The running total must reconcile with the headline figure exactly.
+
+    If it drifts, the trend line is telling a different story from the Net
+    worth card sitting above it.
+    """
+    prev = (date.today().replace(day=1) - __import__("datetime").timedelta(days=1)).strftime("%Y-%m")
+    older = f"""
+{prev}-05 Opening
+    assets:bank:uob           SGD 1000.00
+    equity:opening
+
+{prev}-10 Rent
+    expenses:rent             SGD 300.00
+    assets:bank:uob
+"""
+    d = data(older, SALARY, LUNCH, TAX)
+    series = d["net_worth_series"]
+    assert len(series) == 2, [s["month"] for s in series]
+    assert series[-1]["value"] == d["net_worth"], (series, d["net_worth"])
+    # and it must actually move, not be flat
+    assert series[0]["value"] != series[-1]["value"], series
+
+
+def test_net_worth_series_is_cumulative_not_per_month():
+    prev = (date.today().replace(day=1) - __import__("datetime").timedelta(days=1)).strftime("%Y-%m")
+    j = f"""
+{prev}-05 Opening
+    assets:bank:uob           SGD 100.00
+    equity:opening
+
+{MONTH}-05 More
+    assets:bank:uob           SGD 50.00
+    equity:opening
+"""
+    series = build_data(j, "SGD")["net_worth_series"]
+    assert [s["value"] for s in series] == [100.0, 150.0], series
 
 
 if __name__ == "__main__":
