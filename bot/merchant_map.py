@@ -14,6 +14,10 @@ class MerchantMap:
                 return json.load(f)
         return {}
 
+    def reload(self) -> None:
+        """Re-read from disk; the file is also written by imports."""
+        self._data = self._load()
+
     def lookup(self, description: str) -> Optional[str]:
         desc_upper = description.upper()
         for key, account in self._data.items():
@@ -27,6 +31,13 @@ class MerchantMap:
 
     def to_dict(self) -> dict[str, str]:
         return dict(self._data)
+
+    def delete(self, key: str) -> bool:
+        """Remove a rule. Returns False if it was not there."""
+        if self._data.pop(key.upper(), None) is None:
+            return False
+        self._write()
+        return True
 
     def _write(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

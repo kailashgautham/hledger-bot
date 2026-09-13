@@ -559,3 +559,64 @@ def undo_last_change() -> dict:
     if not success:
         return {"success": False, "message": err or "Revert failed."}
     return {"success": True, "message": err or None}
+
+
+def _shadowed(keys: list[str]) -> dict[str, str]:
+    """Rules that can never fire, mapped to the rule that swallows them.
+
+    lookup() returns the first key whose text appears in the description, and
+    the file is written sorted, so matching order is alphabetical. A rule like
+    GRAB therefore shadows GRABFOOD: any description containing GRABFOOD also
+    contains GRAB, and GRAB is tested first. Silently mis-categorising every
+    future import is exactly the failure this editor exists to catch.
+    """
+    result = {}
+    for i, key in enumerate(keys):
+        for earlier in keys[:i]:
+            if earlier in key:
+                result[key] = earlier
+                break
+    return result
+
+
+def merchants_list() -> dict:
+    merchant_map.reload()
+    data = merchant_map.to_dict()
+    keys = sorted(data)  # the order lookup() actually tests
+    shadow = _shadowed(keys)
+    return {
+        "merchants": [
+            {"pattern": k, "account": data[k], "shadowed_by": shadow.get(k)}
+            for k in keys
+        ],
+        "accounts": writer.get_accounts(),
+    }
+
+
+def _commit_merchants(message: str) -> dict:
+    success, err = git_ops.commit_and_push(message, ["merchant_map.json"])
+    return {"success": success, "message": err or None}
+
+
+def merchant_set(data: dict) -> dict:
+    pattern = (data.get("pattern") or "").strip()
+    account = (data.get("account") or "").strip()
+    if not pattern or not account:
+        return {"success": False, "message": "Pattern and account are required."}
+    merchant_map.reload()
+    # Renaming a rule is a delete plus a save, so the old key cannot linger.
+    old = (data.get("old_pattern") or "").strip()
+    if old and old.upper() != pattern.upper():
+        merchant_map.delete(old)
+    merchant_map.save(pattern, account)
+    return _commit_merchants(f"Map {pattern.upper()} to {account}")
+
+
+def merchant_delete(data: dict) -> dict:
+    pattern = (data.get("pattern") or "").strip()
+    if not pattern:
+        return {"success": False, "message": "Pattern is required."}
+    merchant_map.reload()
+    if not merchant_map.delete(pattern):
+        return {"success": False, "message": "That rule no longer exists."}
+    return _commit_merchants(f"Remove merchant rule {pattern.upper()}")

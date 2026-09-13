@@ -532,6 +532,21 @@
   .xfer { font-weight: 400; margin-right: 4px; }
   .sheet-err { color: var(--red); }
 
+  /* Merchant rules */
+  .mr-list { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+  .mr {
+    padding: 12px 14px; border-radius: var(--r-md);
+    background: var(--input-fill); border: 1px solid var(--glass-border);
+  }
+  .mr.dead { border-color: rgba(255, 149, 0, 0.45); }
+  .mr-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .mr-pattern {
+    flex: 1; min-width: 0; font-weight: 600; font-size: 14px;
+    letter-spacing: -0.01em; overflow-wrap: anywhere;
+  }
+  .mr-head .mini-btn { margin-left: 0; }
+  .mr-note { font-size: 12px; color: var(--amber); margin-top: 8px; line-height: 1.45; }
+
   /* ── Tab bar ───────────────────────────────────── */
   .tabbar {
     position: fixed; left: 50%; transform: translateX(-50%);
@@ -742,6 +757,9 @@
       <span>Activity</span>
     </button>
   </nav>
+    <button class="refresh" id="btn-merchants" title="Merchant rules" aria-label="Merchant rules">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h10M18 18h2"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="18" r="2"/></svg>
+    </button>
     <button class="refresh" id="btn-refresh" title="Refresh" aria-label="Refresh data">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
     </button>
@@ -1561,6 +1579,109 @@ function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
+/* ── Merchant rules ───────────────────────────────────
+   merchant_map.json decides how imports auto-categorise, and nothing in the
+   site could read it — a wrong rule silently repeated on every future
+   import. lookup() returns the first pattern found in the description and
+   the file is stored sorted, so alphabetical order decides ties; the server
+   flags rules that can never fire because an earlier one swallows them. */
+let merchantAccounts = [];
+
+async function openMerchantsSheet() {
+  $('sheet-title').textContent = 'Merchant rules';
+  $('sheet-sub').textContent = 'How imports categorise descriptions automatically';
+  $('sheet-list').innerHTML = '<div class="wiz"><div class="progress"><i style="width:100%"></i></div>'
+    + '<p class="hint">Loading rules…</p></div>';
+  openSheetEl();
+  let d;
+  try {
+    d = await api('/api/merchants');
+  } catch (e) {
+    $('sheet-list').innerHTML = `<div class="wiz"><div class="toast err">${esc(e.message)}</div>
+      <button class="btn ghost full" data-close="1">Close</button></div>`;
+    return;
+  }
+  merchantAccounts = d.accounts || [];
+  renderMerchants(d.merchants || []);
+}
+
+function renderMerchants(rows) {
+  const opts = accountOptions(merchantAccounts);
+  const shadowed = rows.filter(r => r.shadowed_by).length;
+  $('sheet-sub').textContent = `${rows.length} rule${rows.length === 1 ? '' : 's'}`;
+  $('sheet-list').innerHTML = `
+    <div class="wiz">
+      ${shadowed ? `<div class="toast err">${shadowed} rule${shadowed === 1 ? ' never fires' : 's never fire'}
+        because a shorter pattern already matches. Rules are tried in alphabetical order.</div>` : ''}
+      <div class="field-row"><label for="mr-new-pattern">Add a rule</label>
+        <input class="input" id="mr-new-pattern" placeholder="Text in the description, e.g. GRAB"></div>
+      <select class="input" id="mr-new-account">${opts}</select>
+      <button class="btn primary full" id="mr-add">Add rule</button>
+      <p class="hint sheet-err" id="mr-err" hidden></p>
+      <div class="mr-list">
+        ${rows.length ? rows.map((r, i) => `
+          <div class="mr${r.shadowed_by ? ' dead' : ''}">
+            <div class="mr-head">
+              <span class="mr-pattern">${esc(r.pattern)}</span>
+              <button class="mini-btn" data-del="${i}" title="Delete rule" aria-label="Delete rule ${esc(r.pattern)}">${ICON_DELETE}</button>
+            </div>
+            <select class="input mr-account" data-i="${i}">${opts}</select>
+            ${r.shadowed_by ? `<p class="mr-note">Never matches — “${esc(r.shadowed_by)}” is tried first and also matches.</p>` : ''}
+          </div>`).join('') : '<div class="empty">No rules yet. Imports will ask you to categorise everything.</div>'}
+      </div>
+      <button class="btn ghost full" data-close="1">Close</button>
+    </div>`;
+
+  rows.forEach((r, i) => {
+    const sel = $('sheet-list').querySelector(`.mr-account[data-i="${i}"]`);
+    if (sel) {
+      // The mapped account may not exist in the journal any more; keep it
+      // visible rather than silently snapping to whatever sorts first.
+      if (![...sel.options].some(o => o.value === r.account)) {
+        sel.insertAdjacentHTML('afterbegin', `<option value="${esc(r.account)}">${esc(r.account)} (not in journal)</option>`);
+      }
+      sel.value = r.account;
+      sel.addEventListener('change', () => saveMerchant({ pattern: r.pattern, account: sel.value }));
+    }
+  });
+  $('sheet-list').querySelectorAll('[data-del]').forEach(btn =>
+    btn.addEventListener('click', () => deleteMerchant(rows[+btn.dataset.del].pattern)));
+  $('mr-add').addEventListener('click', () => {
+    const pattern = $('mr-new-pattern').value.trim();
+    if (!pattern) {
+      const el = $('mr-err');
+      el.textContent = 'Enter some text to match in the description.';
+      el.hidden = false;
+      return;
+    }
+    saveMerchant({ pattern, account: $('mr-new-account').value });
+  });
+}
+
+async function saveMerchant(payload) {
+  try {
+    const r = await api('/api/merchants/set', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!r.success) throw new Error(r.message || 'Save failed');
+    toast('Rule saved', null, UNDO_ACTION);
+    openMerchantsSheet();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+async function deleteMerchant(pattern) {
+  try {
+    const r = await api('/api/merchants/delete', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pattern }),
+    });
+    if (!r.success) throw new Error(r.message || 'Delete failed');
+    toast('Rule removed', null, UNDO_ACTION);
+    openMerchantsSheet();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
 /* ── Undo ─────────────────────────────────────────────
    Every write commits and pushes immediately. The Telegram bot's /undo was
    the only way back; the web UI had none, leaving git on the server as the
@@ -1853,6 +1974,7 @@ matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
 });
 
 /* ── Keeping data fresh ───────────────────────────── */
+$('btn-merchants').addEventListener('click', () => { openMerchantsSheet(); });
 $('btn-refresh').addEventListener('click', () => {
   load().then(() => toast('Up to date')).catch(() => {});
 });
