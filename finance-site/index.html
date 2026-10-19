@@ -2400,6 +2400,7 @@ function handleReview(r) {
   if (r.step === 'card') { renderCardConfirm(r); return; }
   wiz.cardName = r.card_name || wiz.cardName;
   wiz.idx = r.current_idx; wiz.total = r.total; wiz.current = r.tx;
+  wiz.aiError = r.ai_error || null;
   renderTxView();
 }
 
@@ -2417,6 +2418,7 @@ function renderTxView() {
   $('wizard-body').innerHTML = `
     <div class="wiz">
       <div class="progress"><i style="width:${pct}%"></i></div>
+      ${wiz.aiError ? `<div class="toast err">AI categorisation is down, so only your journal is being matched. ${esc(wiz.aiError)}</div>` : ''}
       <div class="tx-card">
         <div class="tx-count">${wiz.idx + 1} of ${wiz.total}</div>
         <div class="tx-desc">${esc(t.description)}</div>

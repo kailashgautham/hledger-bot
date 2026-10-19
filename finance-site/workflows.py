@@ -203,6 +203,7 @@ def _review_view(wizard: dict) -> dict:
             "ai_suggestion": tx.get("ai_suggestion"),
             "ai_confidence": tx.get("ai_confidence", 0.0),
         },
+        "ai_error": wizard.get("ai_error"),
     }
 
 
@@ -285,6 +286,12 @@ def start_categorisation(
                 "AI categorisation unavailable; %d of %d rows rely on local matching only",
                 len(needs_ai), len(staged),
             )
+
+        # Brand names (Tesco, Uniqlo) can only come from the AI — no amount of
+        # local matching invents them. If it could not answer, say so once with
+        # the provider's own words instead of leaving blank rows unexplained.
+        blank = sum(1 for e in staged if not e["ai_suggestion"])
+        wizard["ai_error"] = categoriser.last_error if (blank and needs_ai) else None
 
         wizard["pending"].extend(staged)
         return _review_view(wizard)
@@ -689,3 +696,8 @@ def merchant_delete(data: dict) -> dict:
     if not merchant_map.delete(pattern):
         return {"success": False, "message": "That rule no longer exists."}
     return _commit_merchants(f"Remove merchant rule {pattern.upper()}")
+
+
+def ai_status() -> dict:
+    """Is the AI actually working? Answers without needing an import or SSH."""
+    return categoriser.status()

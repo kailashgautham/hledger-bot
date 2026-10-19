@@ -343,6 +343,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/merchants":
             self._json(workflows.merchants_list())
             return
+        if self.path == "/api/ai-status":
+            self._json(workflows.ai_status())
+            return
         if self.path in ("/", "/index.html"):
             body = (Path(__file__).parent / "index.html").read_bytes()
             self._send(200, body, "text/html; charset=utf-8")
