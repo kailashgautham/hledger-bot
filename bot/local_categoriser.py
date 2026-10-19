@@ -14,10 +14,13 @@ Tiers, strongest first:
   1. the same description, categorised before   -> 0.97
   2. a description that overlaps strongly       -> 0.80-0.93
   3. a description naming one of their accounts -> 0.75
+  4. a description naming an everyday thing     -> 0.70
 
-Tier 3 is the one that catches the case that prompted this: a statement line
-literally called "Transport" against an account called expenses:transportation
-needs no intelligence at all.
+Tier 3 catches a line called "Transport" against expenses:transportation. Tier
+4 catches "Cheese" and "Coffee", which name no account and may never have been
+bought before, but obviously belong somewhere. It is a vocabulary of ordinary
+nouns, not merchants or brands — those go stale and belong in merchant_map.json
+instead — and it only ever resolves to an account the user already has.
 """
 import re
 from collections import Counter, defaultdict
@@ -33,8 +36,88 @@ STOPWORDS = {
     "EXPENSES", "INCOME", "ASSETS", "LIABILITIES", "EQUITY",
 }
 
+# Everyday words -> the kind of account they belong to, with the account-name
+# words that identify such an account in someone's chart of accounts.
+#
+# Deliberately generic nouns only. No brands and no merchants: those change,
+# are personal, and already have a home in merchant_map.json, which is learned
+# rather than guessed. These are words whose meaning does not drift — cheese is
+# food this year and next.
+#
+# Order matters: the first concept whose words appear wins, and within a
+# concept the account hints are tried in order, so a ledger with both
+# expenses:groceries and expenses:food sends cheese to groceries and coffee to
+# food. A concept is skipped entirely when the user has no matching account —
+# nothing here invents one.
+VOCABULARY: list[tuple[frozenset, tuple]] = [
+    (frozenset({
+        "GROCERY", "GROCERIES", "SUPERMARKET", "PROVISIONS", "CHEESE", "MILK",
+        "BREAD", "EGGS", "EGG", "RICE", "FLOUR", "SUGAR", "BUTTER", "YOGURT",
+        "VEGETABLE", "VEGETABLES", "VEGGIES", "FRUIT", "FRUITS", "MEAT",
+        "CHICKEN", "BEEF", "PORK", "FISH", "SEAFOOD", "PASTA", "CEREAL",
+        "SNACKS", "PANTRY",
+    }), ("GROCERY", "GROCERIES", "SUPERMARKET", "FOOD")),
+    (frozenset({
+        "COFFEE", "KOPI", "TEA", "LATTE", "ESPRESSO", "CAPPUCCINO", "CAFE",
+        "BREAKFAST", "BRUNCH", "LUNCH", "DINNER", "SUPPER", "MEAL", "MEALS",
+        "RESTAURANT", "EATERY", "HAWKER", "KOPITIAM", "CANTEEN", "FOODCOURT",
+        "BAKERY", "PASTRY", "CAKE", "DESSERT", "ICECREAM", "PIZZA", "BURGER",
+        "SUSHI", "RAMEN", "NOODLES", "SANDWICH", "SALAD", "TAKEAWAY", "TAKEOUT",
+        "DELIVERY", "SNACK", "DRINKS", "JUICE", "SMOOTHIE", "BUBBLETEA",
+    }), ("DINING", "RESTAURANT", "EATING", "CAFE", "COFFEE", "FOOD")),
+    (frozenset({
+        "TAXI", "CAB", "RIDE", "FARE", "BUS", "TRAIN", "MRT", "SUBWAY",
+        "METRO", "TRANSIT", "TRANSPORT", "COMMUTE", "PETROL", "GASOLINE",
+        "FUEL", "DIESEL", "PARKING", "TOLL", "ERP", "CARPARK",
+    }), ("TRANSPORT", "TRANSPORTATION", "TRAVEL", "COMMUTE")),
+    (frozenset({
+        "PHARMACY", "CHEMIST", "CLINIC", "DOCTOR", "DENTAL", "DENTIST",
+        "MEDICINE", "MEDICAL", "HOSPITAL", "PRESCRIPTION", "VACCINE",
+        "OPTICAL", "OPTOMETRIST", "PHYSIO", "THERAPY",
+    }), ("HEALTH", "HEALTHCARE", "MEDICAL", "PHARMACY")),
+    (frozenset({
+        "GYM", "YOGA", "PILATES", "CLIMBING", "SWIM", "SWIMMING", "WORKOUT",
+        "TRAINER", "FITNESS",
+    }), ("FITNESS", "GYM", "SPORT", "SPORTS", "HEALTH")),
+    (frozenset({
+        "SUBSCRIPTION", "SUBSCRIPTIONS", "STREAMING", "MEMBERSHIP", "RENEWAL",
+    }), ("SUBSCRIPTION", "SUBSCRIPTIONS", "MEMBERSHIP")),
+    (frozenset({
+        "ELECTRICITY", "WATER", "INTERNET", "WIFI", "BROADBAND", "MOBILE",
+        "TELCO", "UTILITY", "UTILITIES", "BILL", "BILLS",
+    }), ("UTILITY", "UTILITIES", "BILLS")),
+    (frozenset({
+        "MOVIE", "MOVIES", "CINEMA", "CONCERT", "THEATRE", "THEATER", "GIG",
+        "SHOW", "GAME", "GAMES", "GAMING", "ARCADE",
+    }), ("ENTERTAINMENT", "LEISURE", "FUN")),
+    (frozenset({
+        "CLOTHES", "CLOTHING", "APPAREL", "SHIRT", "SHOES", "SNEAKERS",
+        "DRESS", "JACKET", "JEANS", "SHOPPING",
+    }), ("SHOPPING", "CLOTHING", "CLOTHES", "APPAREL")),
+    (frozenset({
+        "HOTEL", "HOSTEL", "AIRBNB", "FLIGHT", "FLIGHTS", "AIRFARE",
+        "AIRLINE", "LUGGAGE", "VISA", "HOLIDAY", "VACATION",
+    }), ("TRAVEL", "HOLIDAY", "VACATION", "TRIPS")),
+    (frozenset({
+        "HAIRCUT", "BARBER", "SALON", "SPA", "MASSAGE", "NAILS", "GROOMING",
+        "SKINCARE", "COSMETICS", "TOILETRIES",
+    }), ("GROOMING", "PERSONAL", "SELFCARE", "BEAUTY")),
+    (frozenset({
+        "VET", "VETERINARY", "PETFOOD", "KIBBLE", "LITTER",
+    }), ("PET", "PETS")),
+    (frozenset({
+        "FURNITURE", "HARDWARE", "REPAIR", "PLUMBER", "ELECTRICIAN",
+        "CLEANING", "LAUNDRY", "HOUSEHOLD",
+    }), ("HOME", "HOUSEHOLD", "HOUSE", "MAINTENANCE")),
+    (frozenset({
+        "COURSE", "TUITION", "TEXTBOOK", "TEXTBOOKS", "SEMINAR", "WORKSHOP",
+        "CERTIFICATION",
+    }), ("EDUCATION", "LEARNING", "COURSES", "TUITION")),
+]
+
 MIN_TOKEN = 3          # shorter tokens match too much to be evidence
 MIN_STEM = 4           # prefix matching below this conflates unrelated words
+
 
 
 def normalise(text: str) -> str:
@@ -212,7 +295,50 @@ class LocalCategoriser:
         if account:
             return account, 0.75
 
+        # 4. The description names an everyday thing. "Cheese" names no
+        #    account and may never have been bought before, but it is food.
+        account = self._match_vocabulary(desc_tokens, allowed)
+        if account:
+            return account, 0.70
+
         return None
+
+    def _match_vocabulary(self, desc_tokens, allowed) -> Optional[str]:
+        """Resolve an everyday noun to whichever of their accounts fits it."""
+        if not desc_tokens:
+            return None
+        for words, hints in VOCABULARY:
+            if not any(_stem(t) in {_stem(w) for w in words} for t in desc_tokens):
+                continue
+            account = self._account_for_hints(hints, allowed)
+            if account:
+                return account
+        return None
+
+    def _account_for_hints(self, hints, allowed) -> Optional[str]:
+        """The user's account that best answers to one of these name hints.
+
+        Ranked shallowest first, then by hint order. Shallowest because a
+        suggestion should be the general category the user can refine with one
+        tap, not a sub-bucket guessed on their behalf: a ledger with both
+        expenses:food and expenses:food:dining-out should offer food. Hint
+        order breaks ties, so a ledger with both groceries and food sends
+        cheese to groceries and coffee to food.
+
+        Returns None when they have no such account — this never invents one.
+        """
+        best: Optional[tuple[int, int, str]] = None
+        for rank, hint in enumerate(hints):
+            for account in self.accounts:
+                if not allowed(account):
+                    continue
+                leaf, _ = _leaf_and_parent_terms(account)
+                if not any(_stem_match(term, hint) for term in leaf):
+                    continue
+                key = (account.count(":"), rank, account)
+                if best is None or key < best:
+                    best = key
+        return best[2] if best else None
 
     def _match_account_name(self, desc_tokens, allowed) -> Optional[str]:
         if not desc_tokens:

@@ -174,8 +174,110 @@ def test_every_word_of_a_compound_account_must_be_present():
     assert got is None, got
 
 
-# -- budget labels ----------------------------------------------------
+# -- everyday words ---------------------------------------------------
+#
+# Things that name no account and may never have been bought before, but
+# obviously belong somewhere. "Cheese" and "Coffee" are the reported cases.
 
+FULL = ACCOUNTS + [
+    "expenses:health", "expenses:shopping", "expenses:entertainment",
+    "expenses:travel", "expenses:pets", "expenses:home", "expenses:education",
+]
+
+
+def test_cheese_is_groceries():
+    got = LocalCategoriser("", FULL).suggest("Cheese")
+    assert got is not None, "Cheese produced no suggestion at all"
+    assert got[0] == "expenses:groceries", got
+
+
+def test_coffee_is_food():
+    got = LocalCategoriser("", FULL).suggest("Coffee")
+    assert got is not None, "Coffee produced no suggestion at all"
+    assert got[0] == "expenses:food", got
+
+
+def test_a_spread_of_everyday_words():
+    """One word each from every concept, so no concept quietly rots."""
+    c = LocalCategoriser("", FULL)
+    expected = {
+        "Cheese": "expenses:groceries", "Milk": "expenses:groceries",
+        "Eggs": "expenses:groceries", "Bread": "expenses:groceries",
+        "Coffee": "expenses:food", "Lunch": "expenses:food",
+        "Dinner": "expenses:food", "Kopi": "expenses:food",
+        "Sushi": "expenses:food", "Bakery": "expenses:food",
+        "Taxi": "expenses:transportation", "Petrol": "expenses:transportation",
+        "Parking": "expenses:transportation", "MRT": "expenses:transportation",
+        "Pharmacy": "expenses:health", "Dentist": "expenses:health",
+        "Gym": "expenses:fitness", "Yoga": "expenses:fitness",
+        "Streaming": "expenses:subscriptions",
+        "Electricity": "expenses:utilities", "Internet": "expenses:utilities",
+        "Cinema": "expenses:entertainment", "Concert": "expenses:entertainment",
+        "Shoes": "expenses:shopping", "Clothes": "expenses:shopping",
+        "Hotel": "expenses:travel", "Flight": "expenses:travel",
+        "Vet": "expenses:pets", "Furniture": "expenses:home",
+        "Textbook": "expenses:education",
+    }
+    failures = []
+    for word, account in expected.items():
+        got = c.suggest(word)
+        if got is None or got[0] != account:
+            failures.append((word, account, got[0] if got else None))
+    assert not failures, failures
+
+
+def test_an_everyday_word_inside_a_longer_line():
+    got = LocalCategoriser("", FULL).suggest("Cheese and crackers run")
+    assert got and got[0] == "expenses:groceries", got
+
+
+def test_a_concept_is_skipped_when_they_have_no_such_account():
+    """Never invent an account that is not in their ledger."""
+    c = LocalCategoriser("", ["expenses:food"])
+    assert c.suggest("Vet") is None, c.suggest("Vet")
+    # ...but food words still resolve, because expenses:food does exist.
+    assert c.suggest("Coffee")[0] == "expenses:food"
+
+
+def test_groceries_fall_back_to_food_when_there_is_no_grocery_account():
+    c = LocalCategoriser("", ["expenses:food"])
+    assert c.suggest("Cheese")[0] == "expenses:food", c.suggest("Cheese")
+
+
+def test_an_account_name_beats_the_vocabulary():
+    """An expenses:coffee account wins over coffee-as-dining."""
+    c = LocalCategoriser("", ["expenses:coffee", "expenses:food"])
+    got = c.suggest("Coffee")
+    assert got[0] == "expenses:coffee", got
+    assert got[1] == 0.75, got
+
+
+def test_history_beats_the_vocabulary():
+    """If you file coffee under groceries, that is where coffee goes."""
+    j = """
+2026-09-07 Coffee
+    expenses:groceries             SGD 6.00
+    liabilities:creditcard:dbs
+"""
+    got = LocalCategoriser(j, FULL).suggest("Coffee")
+    assert got[0] == "expenses:groceries", got
+    assert got[1] >= 0.95, got
+
+
+def test_vocabulary_never_crosses_income_and_expenses():
+    c = LocalCategoriser("", FULL)
+    assert c.suggest("Coffee", is_income=True) is None
+    got = c.suggest("Coffee", is_income=False)
+    assert got and got[0].startswith("expenses:"), got
+
+
+def test_vocabulary_ranks_the_category_above_a_sub_bucket():
+    c = LocalCategoriser("", ["expenses:food", "expenses:food:dining-out:fancy"])
+    got = c.suggest("Coffee")
+    assert got[0] == "expenses:food", got
+
+
+# -- budget labels ----------------------------------------------------
 def test_budget_labels_are_used_as_synonyms():
     """budgets.json labels are user-written synonyms for their accounts."""
     c = cat(labels={"Eating out": "expenses:food:dining-out"})
