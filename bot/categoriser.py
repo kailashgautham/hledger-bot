@@ -7,6 +7,52 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+def _resolve_gemini_model(genai, configured: str) -> str:
+    """Pick a model that exists, rather than trusting a name in a config file.
+
+    A pinned model name is a time bomb: providers retire them, and when one goes
+    every call fails with a 404 that the caller cannot distinguish from a bad
+    key. The configured name is honoured when the API still lists it; otherwise
+    the API's own list decides, so this keeps working after a retirement without
+    anyone editing config.yaml.
+    """
+    try:
+        usable = [
+            m.name.split("/")[-1]
+            for m in genai.list_models()
+            if "generateContent" in getattr(m, "supported_generation_methods", [])
+        ]
+    except Exception as exc:                       # pragma: no cover - network
+        logger.warning("Could not list models (%s); trying %r", exc, configured)
+        return configured
+    if not usable:
+        return ""
+    if configured and configured in usable:
+        return configured
+    if configured:
+        logger.warning("Model %r is not available; choosing from %d offered",
+                       configured, len(usable))
+    # Prefer the provider's small, high-quota tier when it offers one, since
+    # this runs per statement on a free key; otherwise take what is offered.
+    for name in sorted(usable):
+        if "flash" in name and "thinking" not in name:
+            return name
+    return sorted(usable)[0]
+
+
+def _resolve_groq_model(client) -> str:
+    """The same for Groq: ask what exists instead of pinning a name."""
+    try:
+        names = sorted(m.id for m in client.models.list().data)
+    except Exception as exc:                       # pragma: no cover - network
+        logger.warning("Could not list Groq models: %s", exc)
+        return ""
+    for name in names:
+        if "instant" in name or "8b" in name:
+            return name
+    return names[0] if names else ""
+
+
 class Categoriser:
     """Suggests hledger accounts for transactions using a free AI provider."""
 
@@ -43,7 +89,14 @@ class Categoriser:
                     logger.warning("GOOGLE_API_KEY not set; AI categorisation disabled")
                     return None
                 genai.configure(api_key=api_key)
-                return genai.GenerativeModel(self.model_name or "gemini-1.5-flash")
+                self.model_name = _resolve_gemini_model(genai, self.model_name)
+                if not self.model_name:
+                    self.last_error = (
+                        "the API key works but offers no model that can generate "
+                        "content — check the key's project and quota"
+                    )
+                    return None
+                return genai.GenerativeModel(self.model_name)
             except ImportError:
                 self.last_error = "google-generativeai is not installed"
                 logger.warning("google-generativeai not installed")
@@ -132,7 +185,7 @@ Rules:
 
         if self.provider == "groq":
             response = self._client.chat.completions.create(
-                model=self.model_name or "llama-3.3-70b-versatile",
+                model=self.model_name or _resolve_groq_model(self._client),
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
             )

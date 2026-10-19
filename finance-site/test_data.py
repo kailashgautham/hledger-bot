@@ -203,7 +203,10 @@ def test_bad_settings_fall_back_instead_of_crashing():
         path = Path(d) / "budgets.json"
         path.write_text("{ not json at all")
         s = load_settings(path)
-        assert "expenses:food" in s["budgets"], s
+        # No invented budgets to fall back to: limits get derived from the
+        # ledger's own history instead, so the fallback is an empty dict.
+        assert s["budgets"] == {}, s
+        assert s["other_budget"] is None, s
         # a zero limit would divide by zero when computing percentages
         path.write_text('{"budgets": {"expenses:x": {"limit": 0}}}')
         assert load_settings(path)["budgets"] == {}
@@ -222,6 +225,78 @@ def test_insight_amounts_are_placeholders_not_prefixed_text():
     assert "{{amt:" in bodies, bodies
     for code in ("USD", "SGD"):
         assert code not in bodies, (code, bodies)
+
+
+def test_budgets_are_derived_from_spending_not_invented():
+    """With no budgets.json, each limit is that category's own median month."""
+    import datetime
+    first = date.today().replace(day=1)
+    m1 = (first - datetime.timedelta(days=1)).replace(day=1)
+    m2 = (m1 - datetime.timedelta(days=1)).replace(day=1)
+    m3 = (m2 - datetime.timedelta(days=1)).replace(day=1)
+    j = ""
+    for m, amount in ((m3, 100), (m2, 300), (m1, 200)):
+        j += f"""
+{m.strftime('%Y-%m')}-05 Lunch
+    expenses:food             SGD {amount}.00
+    liabilities:creditcard:dbs
+"""
+    rows = {b["account"]: b for b in build_data(j, "SGD")["budgets"]["items"]}
+    assert "expenses:food" in rows, rows
+    # median of 100, 300, 200 is 200 — not a number from this source file
+    assert rows["expenses:food"]["budget"] == 200.0, rows["expenses:food"]
+
+
+def test_derived_budgets_ignore_the_running_month():
+    """A month three days old must not set a budget near zero."""
+    j = f"""
+{MONTH}-01 Lunch
+    expenses:food             SGD 5.00
+    liabilities:creditcard:dbs
+"""
+    rows = build_data(j, "SGD")["budgets"]["items"]
+    # No completed month, so expenses:food gets no derived limit at all.
+    assert [r["account"] for r in rows] == ["expenses:other"], rows
+
+
+def test_derived_budgets_exclude_tax():
+    import datetime
+    prev = (date.today().replace(day=1) - datetime.timedelta(days=1)).strftime("%Y-%m")
+    j = f"""
+{prev}-04 IRAS income tax
+    expenses:taxes            SGD 1000.00
+    assets:bank:dbs
+"""
+    accounts = [b["account"] for b in build_data(j, "SGD")["budgets"]["items"]]
+    assert "expenses:taxes" not in accounts, accounts
+
+
+def test_an_explicit_budget_still_wins_over_the_derived_one():
+    import datetime
+    prev = (date.today().replace(day=1) - datetime.timedelta(days=1)).strftime("%Y-%m")
+    j = f"""
+{prev}-05 Lunch
+    expenses:food             SGD 500.00
+    liabilities:creditcard:dbs
+"""
+    settings = {"budgets": {"expenses:food": {"limit": 42.0, "label": "Food"}},
+                "other_budget": 7.0, "exclude_from_spend": []}
+    rows = {b["account"]: b for b in build_data(j, "SGD", settings)["budgets"]["items"]}
+    assert rows["expenses:food"]["budget"] == 42.0, rows["expenses:food"]
+
+
+def test_no_history_means_no_invented_budget_rows():
+    """An empty ledger must not render a budget it made up."""
+    assert build_data("", "SGD")["budgets"]["items"] == []
+
+
+def test_spending_with_no_history_is_shown_not_measured_against_a_guess():
+    d = data(LUNCH)
+    rows = d["budgets"]["items"]
+    assert len(rows) == 1 and rows[0]["account"] == "expenses:other", rows
+    # the bar is what was spent, not a number from this source file
+    assert rows[0]["budget"] == rows[0]["spent"] == 20.0, rows[0]
+    assert rows[0]["over"] is False, rows[0]
 
 
 def test_name_is_passed_through():

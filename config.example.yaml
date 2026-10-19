@@ -32,8 +32,9 @@ currency: SGD
 ai:
   # Options: gemini (free, needs GOOGLE_API_KEY), groq (free, needs GROQ_API_KEY), none
   provider: gemini
-  # gemini: use "gemini-1.5-flash" (free tier)
-  # groq:   use "llama-3.3-70b-versatile" (free tier)
-  model: gemini-2.0-flash
+  # Leave blank to use whatever the provider currently offers. Pinning a name
+  # here means that when the provider retires it, every call starts failing
+  # with a 404 — so only set it to override the automatic choice.
+  model:
   # Ask user even for known merchants if confidence is below this threshold
   confidence_threshold: 0.85

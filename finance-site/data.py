@@ -4,6 +4,7 @@ import logging
 import re
 from collections import defaultdict
 from datetime import date
+from statistics import median
 from pathlib import Path
 
 from balances import account_balances, account_total, parse_amount
@@ -16,16 +17,13 @@ _STATUS_RE = re.compile(r"^[!*]\s*")
 OTHERS_ACCOUNT = "expenses:other"
 SETTINGS_FILENAME = "budgets.json"
 
-# Used when no budgets.json is present, so a fresh install still renders.
+# No invented budgets and no invented categories. When budgets.json says
+# nothing, limits are derived from what this ledger has actually spent per
+# month (see _derive_budgets), which cannot be wrong about someone else's life
+# the way a guessed number is.
 DEFAULT_SETTINGS: dict = {
-    "budgets": {
-        "expenses:food": {"limit": 200, "label": "Food"},
-        "expenses:fitness": {"limit": 90, "label": "Fitness"},
-        "expenses:subscriptions": {"limit": 20, "label": "Subscriptions"},
-        "expenses:entertainment": {"limit": 50, "label": "Entertainment"},
-        "expenses:transportation": {"limit": 80, "label": "Transport"},
-    },
-    "other_budget": 60.0,
+    "budgets": {},
+    "other_budget": None,
     # Accounts that are money out but not "spending" you can act on. One list,
     # applied everywhere: the headline spend figure, the cash-flow bars, the
     # category breakdown, the per-category insights and the budget rows.
@@ -91,13 +89,47 @@ def load_settings(path: Path | None) -> dict:
             if float(other) > 0:
                 settings["other_budget"] = float(other)
         except (TypeError, ValueError):
-            logger.warning("other_budget is not a number; using default")
+            logger.warning("other_budget is not a number; deriving it instead")
 
     exclude = raw.get("exclude_from_spend")
     if isinstance(exclude, list):
         settings["exclude_from_spend"] = [str(a) for a in exclude]
 
     return settings
+
+
+def _derive_budgets(monthly_cats: dict, this_month: str, is_excluded) -> dict:
+    """A budget per category, from that category's own monthly history.
+
+    The median of completed months, so one unusual month neither raises nor
+    sinks the bar. The current month is excluded while it is still running: a
+    month that is three days old would otherwise set a budget near zero.
+
+    Returns {} for a ledger with no completed month, which renders no budget
+    rows at all — better than inventing a figure to render something.
+    """
+    done = [m for m in sorted(monthly_cats) if m < this_month]
+    if not done:
+        return {}
+    per_account: dict[str, list[float]] = {}
+    for month in done:
+        for account, amount in monthly_cats[month].items():
+            if is_excluded(account) or amount <= 0:
+                continue
+            per_account.setdefault(account, []).append(amount)
+    budgets = {}
+    for account, amounts in per_account.items():
+        # Months where nothing was spent count as zero, or a category bought
+        # once would get a budget equal to that single purchase.
+        series = amounts + [0.0] * (len(done) - len(amounts))
+        limit = round(median(series), 2)
+        if limit <= 0:
+            continue
+        budgets[account] = {
+            "limit": limit,
+            "label": account.replace("expenses:", "").replace(":", " · ").title(),
+        }
+    return budgets
 
 
 def _excluder(settings: dict):
@@ -345,6 +377,8 @@ def build_data(text: str, currency: str = "SGD", settings: dict | None = None,
 
     budget_month = this_month
     budget_cats = {a: v for a, v in monthly_cats.get(budget_month, {}).items() if v > 0}
+    if not budgets:
+        budgets = _derive_budgets(monthly_cats, this_month, is_excluded)
     budget_rows = []
     for acct in sorted(budgets, key=lambda a: -budget_cats.get(a, 0.0)):
         budget = budgets[acct]["limit"]
@@ -362,16 +396,40 @@ def build_data(text: str, currency: str = "SGD", settings: dict | None = None,
     # Excluded accounts never reach budget_cats, so no extra filter is needed.
     others = {a: v for a, v in budget_cats.items() if a not in budgets}
     others_total = sum(others.values())
-    budget_rows.append({
-        "account": OTHERS_ACCOUNT,
-        "label": "Other",
-        "spent": round(others_total, 2),
-        "budget": other_budget,
-        "pct": round(others_total / other_budget * 100, 1),
-        "over": others_total > other_budget,
-        "warn": not (others_total > other_budget) and others_total >= other_budget * 0.75,
-        "members": sorted(others.keys()),
-    })
+    if other_budget is None:
+        # Same derivation as the rows above, applied to whatever is left over.
+        other_budget = round(median([
+            sum(v for a, v in monthly_cats[m].items()
+                if a not in budgets and not is_excluded(a))
+            for m in sorted(monthly_cats) if m < this_month
+        ] or [0.0]), 2)
+    # A ledger with nothing outside the named categories gets no Other row at
+    # all. Inventing a limit to have something to draw is how a made-up number
+    # ends up on screen looking like a decision the user made.
+    if other_budget and other_budget > 0:
+        budget_rows.append({
+            "account": OTHERS_ACCOUNT,
+            "label": "Other",
+            "spent": round(others_total, 2),
+            "budget": other_budget,
+            "pct": round(others_total / other_budget * 100, 1),
+            "over": others_total > other_budget,
+            "warn": not (others_total > other_budget) and others_total >= other_budget * 0.75,
+            "members": sorted(others.keys()),
+        })
+    elif others_total > 0:
+        # Spending with no history to set a bar against: show it, flagged, with
+        # the bar set to what was actually spent rather than to a guess.
+        budget_rows.append({
+            "account": OTHERS_ACCOUNT,
+            "label": "Other",
+            "spent": round(others_total, 2),
+            "budget": round(others_total, 2),
+            "pct": 100.0,
+            "over": False,
+            "warn": False,
+            "members": sorted(others.keys()),
+        })
 
     # Net worth over time. Net worth is assets + liabilities, so running the
     # per-month changes forward reconstructs the balance at each month end

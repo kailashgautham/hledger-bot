@@ -8,6 +8,7 @@ import time
 
 import pdfplumber  # type: ignore
 
+from ..categoriser import _resolve_gemini_model, _resolve_groq_model
 from ..state import match_card_name
 from .base import BaseParser, Transaction
 
@@ -44,7 +45,10 @@ class AIParser(BaseParser):
                 if not api_key:
                     return None
                 genai.configure(api_key=api_key)
-                return genai.GenerativeModel(self.model_name or "gemini-1.5-flash")
+                self.model_name = _resolve_gemini_model(genai, self.model_name)
+                if not self.model_name:
+                    return None
+                return genai.GenerativeModel(self.model_name)
             except ImportError:
                 return None
 
@@ -183,7 +187,7 @@ Rules:
 
         if self.provider == "groq":
             resp = self._client.chat.completions.create(
-                model=self.model_name or "llama-3.3-70b-versatile",
+                model=self.model_name or _resolve_groq_model(self._client),
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
             )

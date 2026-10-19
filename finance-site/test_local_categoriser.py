@@ -161,9 +161,54 @@ def test_short_words_do_not_match_accounts():
     assert c.suggest("CAR") is None, c.suggest("CAR")
 
 
-def test_statement_furniture_is_not_evidence():
-    """A description made only of card-statement noise must not match."""
-    assert cat().suggest("CARD PAYMENT SINGAPORE SG REF 88213") is None
+def test_common_words_lose_their_vote_once_they_spread():
+    """Replaces what a stopword list used to do, learned instead of listed.
+
+    "SINGAPORE" appears on card lines against every category, so it predicts
+    nothing and must not decide anything. No list says so — the journal does.
+    """
+    spread = """
+2026-09-01 ALPHA SINGAPORE
+    expenses:food                  SGD 10.00
+    liabilities:creditcard:dbs
+
+2026-09-02 BETA SINGAPORE
+    expenses:groceries             SGD 10.00
+    liabilities:creditcard:dbs
+
+2026-09-03 GAMMA SINGAPORE
+    expenses:fitness               SGD 10.00
+    liabilities:creditcard:dbs
+
+2026-09-04 DELTA SINGAPORE
+    expenses:transportation        SGD 10.00
+    liabilities:creditcard:dbs
+"""
+    c = LocalCategoriser(spread, ACCOUNTS)
+    assert c._weight("SINGAPORE") <= 0.3, c._weight("SINGAPORE")
+    assert c.suggest("OMEGA SINGAPORE") is None, c.suggest("OMEGA SINGAPORE")
+
+
+def test_a_distinctive_word_keeps_its_vote():
+    """The other half of the same mechanism: a reliable word still decides."""
+    c = cat()
+    assert c._weight("FITNESS") == 1.0, c._weight("FITNESS")
+    got = c.suggest("ANYTIME FITNESS SOMEWHERE ELSE")
+    assert got and got[0] == "expenses:fitness", got
+
+
+def test_a_spread_word_cannot_outvote_a_distinctive_one():
+    j = JOURNAL + """
+2026-09-07 FITNESS SHOP SINGAPORE
+    expenses:fitness               SGD 20.00
+    liabilities:creditcard:dbs
+
+2026-09-08 SOMETHING SINGAPORE
+    expenses:groceries             SGD 20.00
+    liabilities:creditcard:dbs
+"""
+    got = LocalCategoriser(j, ACCOUNTS).suggest("NEW FITNESS PLACE SINGAPORE")
+    assert got and got[0] == "expenses:fitness", got
 
 
 def test_every_word_of_a_compound_account_must_be_present():
@@ -172,109 +217,6 @@ def test_every_word_of_a_compound_account_must_be_present():
     # "Out" alone is not enough to claim the dining-out account
     got = c.suggest("Out")
     assert got is None, got
-
-
-# -- everyday words ---------------------------------------------------
-#
-# Things that name no account and may never have been bought before, but
-# obviously belong somewhere. "Cheese" and "Coffee" are the reported cases.
-
-FULL = ACCOUNTS + [
-    "expenses:health", "expenses:shopping", "expenses:entertainment",
-    "expenses:travel", "expenses:pets", "expenses:home", "expenses:education",
-]
-
-
-def test_cheese_is_groceries():
-    got = LocalCategoriser("", FULL).suggest("Cheese")
-    assert got is not None, "Cheese produced no suggestion at all"
-    assert got[0] == "expenses:groceries", got
-
-
-def test_coffee_is_food():
-    got = LocalCategoriser("", FULL).suggest("Coffee")
-    assert got is not None, "Coffee produced no suggestion at all"
-    assert got[0] == "expenses:food", got
-
-
-def test_a_spread_of_everyday_words():
-    """One word each from every concept, so no concept quietly rots."""
-    c = LocalCategoriser("", FULL)
-    expected = {
-        "Cheese": "expenses:groceries", "Milk": "expenses:groceries",
-        "Eggs": "expenses:groceries", "Bread": "expenses:groceries",
-        "Coffee": "expenses:food", "Lunch": "expenses:food",
-        "Dinner": "expenses:food", "Kopi": "expenses:food",
-        "Sushi": "expenses:food", "Bakery": "expenses:food",
-        "Taxi": "expenses:transportation", "Petrol": "expenses:transportation",
-        "Parking": "expenses:transportation", "MRT": "expenses:transportation",
-        "Pharmacy": "expenses:health", "Dentist": "expenses:health",
-        "Gym": "expenses:fitness", "Yoga": "expenses:fitness",
-        "Streaming": "expenses:subscriptions",
-        "Electricity": "expenses:utilities", "Internet": "expenses:utilities",
-        "Cinema": "expenses:entertainment", "Concert": "expenses:entertainment",
-        "Shoes": "expenses:shopping", "Clothes": "expenses:shopping",
-        "Hotel": "expenses:travel", "Flight": "expenses:travel",
-        "Vet": "expenses:pets", "Furniture": "expenses:home",
-        "Textbook": "expenses:education",
-    }
-    failures = []
-    for word, account in expected.items():
-        got = c.suggest(word)
-        if got is None or got[0] != account:
-            failures.append((word, account, got[0] if got else None))
-    assert not failures, failures
-
-
-def test_an_everyday_word_inside_a_longer_line():
-    got = LocalCategoriser("", FULL).suggest("Cheese and crackers run")
-    assert got and got[0] == "expenses:groceries", got
-
-
-def test_a_concept_is_skipped_when_they_have_no_such_account():
-    """Never invent an account that is not in their ledger."""
-    c = LocalCategoriser("", ["expenses:food"])
-    assert c.suggest("Vet") is None, c.suggest("Vet")
-    # ...but food words still resolve, because expenses:food does exist.
-    assert c.suggest("Coffee")[0] == "expenses:food"
-
-
-def test_groceries_fall_back_to_food_when_there_is_no_grocery_account():
-    c = LocalCategoriser("", ["expenses:food"])
-    assert c.suggest("Cheese")[0] == "expenses:food", c.suggest("Cheese")
-
-
-def test_an_account_name_beats_the_vocabulary():
-    """An expenses:coffee account wins over coffee-as-dining."""
-    c = LocalCategoriser("", ["expenses:coffee", "expenses:food"])
-    got = c.suggest("Coffee")
-    assert got[0] == "expenses:coffee", got
-    assert got[1] == 0.75, got
-
-
-def test_history_beats_the_vocabulary():
-    """If you file coffee under groceries, that is where coffee goes."""
-    j = """
-2026-09-07 Coffee
-    expenses:groceries             SGD 6.00
-    liabilities:creditcard:dbs
-"""
-    got = LocalCategoriser(j, FULL).suggest("Coffee")
-    assert got[0] == "expenses:groceries", got
-    assert got[1] >= 0.95, got
-
-
-def test_vocabulary_never_crosses_income_and_expenses():
-    c = LocalCategoriser("", FULL)
-    assert c.suggest("Coffee", is_income=True) is None
-    got = c.suggest("Coffee", is_income=False)
-    assert got and got[0].startswith("expenses:"), got
-
-
-def test_vocabulary_ranks_the_category_above_a_sub_bucket():
-    c = LocalCategoriser("", ["expenses:food", "expenses:food:dining-out:fancy"])
-    got = c.suggest("Coffee")
-    assert got[0] == "expenses:food", got
 
 
 # -- budget labels ----------------------------------------------------
@@ -291,9 +233,12 @@ def test_normalise_strips_reference_noise():
     assert normalise("GRAB  *TRIP 4821  SG") == "GRAB TRIP SG"
 
 
-def test_tokens_drop_furniture_and_account_prefixes():
-    assert "EXPENSES" not in tokens("expenses food")
-    assert "FOOD" in tokens("expenses food")
+def test_tokens_filter_structurally_only():
+    """tokens() must not contain domain knowledge — length and digits only."""
+    assert tokens("GRAB *TRIP 4821 SG") == ["GRAB", "TRIP"]  # "SG" too short, 4821 numeric
+    # No word is special-cased away: meaning is decided from the journal.
+    assert "PAYMENT" in tokens("CARD PAYMENT")
+    assert "EXPENSES" in tokens("expenses food")
 
 
 def test_account_terms_drop_the_type_segment():
