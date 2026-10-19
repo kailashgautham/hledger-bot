@@ -58,7 +58,11 @@ class AIParser(BaseParser):
                 api_key = os.environ.get("GROQ_API_KEY")
                 if not api_key:
                     return None
-                return Groq(api_key=api_key)
+                client = Groq(api_key=api_key)
+                self.model_name = _resolve_groq_model(client, self.model_name)
+                if not self.model_name:
+                    return None
+                return client
             except ImportError:
                 return None
 
@@ -187,7 +191,7 @@ Rules:
 
         if self.provider == "groq":
             resp = self._client.chat.completions.create(
-                model=self.model_name or _resolve_groq_model(self._client),
+                model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
             )

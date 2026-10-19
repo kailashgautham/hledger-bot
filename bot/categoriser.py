@@ -40,17 +40,33 @@ def _resolve_gemini_model(genai, configured: str) -> str:
     return sorted(usable)[0]
 
 
-def _resolve_groq_model(client) -> str:
-    """The same for Groq: ask what exists instead of pinning a name."""
+def _resolve_groq_model(client, configured: str = "") -> str:
+    """The same for Groq: ask what exists instead of trusting a pinned name.
+
+    Groq retires models on a rolling basis. A name that worked when config.yaml
+    was written stops existing, and every request then fails with an error the
+    caller swallowed — which is exactly what happened here.
+    """
     try:
         names = sorted(m.id for m in client.models.list().data)
     except Exception as exc:                       # pragma: no cover - network
-        logger.warning("Could not list Groq models: %s", exc)
+        logger.warning("Could not list Groq models (%s); trying %r", exc, configured)
+        return configured
+    if not names:
         return ""
-    for name in names:
-        if "instant" in name or "8b" in name:
+    if configured and configured in names:
+        return configured
+    if configured:
+        logger.warning("Groq model %r is no longer offered; choosing from %d available",
+                       configured, len(names))
+    # Prefer a small, high-throughput chat model on a free key; skip anything
+    # that is plainly not a chat model.
+    chat = [n for n in names if not any(
+        k in n.lower() for k in ("whisper", "tts", "guard", "embed", "vision"))]
+    for name in chat:
+        if "instant" in name or "8b" in name or "mini" in name:
             return name
-    return names[0] if names else ""
+    return (chat or names)[0]
 
 
 class Categoriser:
@@ -68,14 +84,39 @@ class Categoriser:
         self.last_error: Optional[str] = None
         self._client = self._init_client()
 
-    def status(self) -> dict:
-        """Enough to tell a missing key from a dead model without SSH."""
-        return {
+    def status(self, probe: bool = False) -> dict:
+        """Whether the AI actually works, and if not, exactly why.
+
+        `available` only means a client object exists — for most SDKs that is
+        purely local and proves nothing, which made an earlier version of this
+        endpoint report a healthy AI that had never successfully answered.
+        `probe` therefore makes a real request and reports what came back.
+        """
+        out = {
             "provider": self.provider,
             "model": self.model_name or None,
-            "available": self.available,
+            "configured": self.available,
             "last_error": self.last_error,
         }
+        if not probe:
+            return out
+        if not self.available:
+            out["working"] = False
+            out["reason"] = self.last_error or "no AI client could be created"
+            return out
+        answers = self.suggest_many(
+            [{"description": "COFFEE SHOP", "amount": -4.5}],
+            "SGD", ["expenses:food", "expenses:groceries"], [],
+        )
+        out["working"] = bool(answers)
+        out["model"] = self.model_name or None
+        # Re-read after the probe, so a stale error from start-up can never sit
+        # next to a fresh result and contradict it.
+        out["last_error"] = self.last_error
+        out["reason"] = None if answers else (self.last_error or "no answer returned")
+        if answers:
+            out["answered"] = list(answers.get(0))
+        return out
 
 
     def _init_client(self):
@@ -111,7 +152,14 @@ class Categoriser:
                     self.last_error = "GROQ_API_KEY is not set in this container"
                     logger.warning("GROQ_API_KEY not set; AI categorisation disabled")
                     return None
-                return Groq(api_key=api_key)
+                client = Groq(api_key=api_key)
+                self.model_name = _resolve_groq_model(client, self.model_name)
+                if not self.model_name:
+                    self.last_error = (
+                        "the API key works but Groq offers no usable chat model"
+                    )
+                    return None
+                return client
             except ImportError:
                 self.last_error = "groq is not installed"
                 logger.warning("groq not installed")
@@ -185,7 +233,7 @@ Rules:
 
         if self.provider == "groq":
             response = self._client.chat.completions.create(
-                model=self.model_name or _resolve_groq_model(self._client),
+                model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
             )

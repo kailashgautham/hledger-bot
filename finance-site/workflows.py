@@ -699,5 +699,5 @@ def merchant_delete(data: dict) -> dict:
 
 
 def ai_status() -> dict:
-    """Is the AI actually working? Answers without needing an import or SSH."""
-    return categoriser.status()
+    """Is the AI actually working? Makes a real request and reports the result."""
+    return categoriser.status(probe=True)

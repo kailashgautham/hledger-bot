@@ -107,6 +107,82 @@ def test_no_provider_means_no_request_and_no_crash():
     assert c.suggest_many([{"description": "A", "amount": -1.0}], "SGD", ACCOUNTS, []) == {}
 
 
+# -- model resolution -------------------------------------------------
+#
+# A pinned model name is the failure this project actually hit: config.yaml
+# named llama-3.3-70b-versatile, the provider retired it, and every request
+# failed with an error nobody saw.
+
+import types  # noqa: E402
+
+from bot.categoriser import _resolve_groq_model  # noqa: E402
+
+LIVE = ["llama-4-scout-17b", "llama-3.1-8b-instant", "whisper-large-v3",
+        "meta-llama/llama-guard-4-12b"]
+
+
+def groq_client(ids, fail=None):
+    def _list():
+        if fail:
+            raise fail
+        return types.SimpleNamespace(data=[types.SimpleNamespace(id=i) for i in ids])
+    return types.SimpleNamespace(models=types.SimpleNamespace(list=_list))
+
+
+def test_a_retired_model_is_replaced_not_used():
+    got = _resolve_groq_model(groq_client(LIVE), "llama-3.3-70b-versatile")
+    assert got in LIVE, got
+    assert got == "llama-3.1-8b-instant", got
+
+
+def test_a_live_pinned_model_is_respected():
+    ids = LIVE + ["llama-3.3-70b-versatile"]
+    assert _resolve_groq_model(groq_client(ids), "llama-3.3-70b-versatile") == \
+        "llama-3.3-70b-versatile"
+
+
+def test_non_chat_models_are_not_chosen():
+    got = _resolve_groq_model(groq_client(LIVE), "")
+    assert "whisper" not in got and "guard" not in got, got
+
+
+def test_listing_failure_keeps_the_configured_model():
+    """A network blip must not swap a working model for nothing."""
+    got = _resolve_groq_model(groq_client([], fail=RuntimeError("timeout")), "pinned-one")
+    assert got == "pinned-one", got
+
+
+# -- status probing ---------------------------------------------------
+
+
+def probe(**kw):
+    c = make_categoriser(**kw)
+    return c.status(probe=True)
+
+
+def test_probe_reports_working_when_the_ai_answers():
+    out = probe(raw_response='{"0": {"account": "expenses:food", "confidence": 0.9}}')
+    assert out["working"] is True, out
+    assert out["reason"] is None and out["last_error"] is None, out
+
+
+def test_probe_reports_the_real_reason_when_it_does_not():
+    out = probe(fail=True)
+    assert out["working"] is False, out
+    assert "429" in out["reason"], out
+    # and must not contradict itself
+    assert out["reason"] == out["last_error"], out
+
+
+def test_probe_does_not_claim_health_from_a_constructed_client():
+    """The bug in the first version of this endpoint: a client object exists
+    for most SDKs without any network call, so it proves nothing."""
+    c = Categoriser({"ai": {"provider": "none"}})
+    plain = c.status()
+    assert "working" not in plain, plain
+    assert c.status(probe=True)["working"] is False
+
+
 # -- the pipeline's ordering ------------------------------------------
 #
 # Mirrors start_categorisation without needing a config.yaml or a journal on
