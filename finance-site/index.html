@@ -728,6 +728,9 @@
     background: var(--tone-info); border: 1px solid rgba(10,132,255,.25); color: var(--text);
   }
   .sugg .conf { color: var(--tertiary); font-size: 12px; }
+  /* Why this account was suggested — a guess you can't check is a guess you
+     can't trust, and this one is now almost always derived from the journal. */
+  .sugg-why { display: block; margin-top: 3px; font-size: 12px; color: var(--secondary); }
   .wiz-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
   .wiz-secondary { display: grid; grid-template-columns: repeat(auto-fit, minmax(94px, 1fr)); gap: 8px; }
   .wiz-secondary .btn { padding: 11px 8px; justify-content: center; }
@@ -2408,8 +2411,9 @@ function renderTxView() {
   const direction = t.type === 'income' ? 'income' : 'expense';
   const amt = cur.format(t.amount) + (t.original_amount ? ` · from ${cur.format(t.original_amount)}` : '');
   const sugg = t.ai_suggestion
-    ? `<div class="sugg">Suggested: <strong>${esc(t.ai_suggestion)}</strong></div>`
-    : '<div class="sugg">No suggestion — choose a category.</div>';
+    ? `<div class="sugg">Suggested: <strong>${esc(t.ai_suggestion)}</strong>${
+        t.suggestion_source ? `<span class="sugg-why">${esc(t.suggestion_source)}</span>` : ''}</div>`
+    : '<div class="sugg">Nothing in your journal matches this one yet — pick a category and it’s remembered.</div>';
   const chips = (t.account ? `<span class="chip">${esc(t.account)}</span>` : '')
     + (t.amortize_months ? `<span class="chip">split over ${t.amortize_months} months</span>` : '');
   const pct = Math.round((wiz.idx / wiz.total) * 100);
@@ -2425,9 +2429,11 @@ function renderTxView() {
         ${sugg}
       </div>
       <div class="wiz-actions">
-        <button class="btn primary full" data-act="confirm">Confirm${t.ai_suggestion ? ` — ${esc(t.ai_suggestion)}` : ''}</button>
+        ${t.ai_suggestion
+          ? `<button class="btn primary full" data-act="confirm">Confirm — ${esc(t.ai_suggestion)}</button>`
+          : `<button class="btn primary full" data-act="category">Choose a category</button>`}
         <div class="wiz-secondary">
-          <button class="btn ghost" data-act="category">Category</button>
+          ${t.ai_suggestion ? '<button class="btn ghost" data-act="category">Category</button>' : ''}
           <button class="btn ghost" data-act="edit">Edit</button>
           <button class="btn ghost" data-act="name">Rename</button>
           <button class="btn ghost" data-act="split">Split</button>

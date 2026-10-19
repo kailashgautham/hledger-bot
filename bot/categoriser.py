@@ -118,6 +118,97 @@ Rules:
 
         raise RuntimeError("No AI provider configured")
 
+    def suggest_many(
+        self,
+        items: list[dict],
+        currency: str,
+        accounts: list[str],
+        examples: list[dict],
+    ) -> dict[int, tuple[str, float]]:
+        """Categorise a whole statement in ONE request.
+
+        The importer used to call suggest_category once per transaction. The
+        free Gemini tier allows 15 requests a minute, so a 25-row statement
+        exhausted the quota part-way through and every remaining row came back
+        with no suggestion at all. One request per statement instead of one per
+        row keeps a normal import inside any provider's limit.
+
+        Returns {index: (account, confidence)} for whatever came back; indexes
+        it could not answer are simply absent, so the caller keeps its own
+        fallback for those rather than being handed a wrong account.
+        """
+        if not self._client or not items:
+            return {}
+        prompt = self._build_batch_prompt(items, currency, accounts, examples)
+        try:
+            raw = self._call(prompt)
+            return self._parse_batch(raw, len(items))
+        except Exception as exc:
+            logger.error("AI batch categorisation failed: %s", exc)
+            return {}
+
+    def _build_batch_prompt(
+        self,
+        items: list[dict],
+        currency: str,
+        accounts: list[str],
+        examples: list[dict],
+    ) -> str:
+        accounts_str = "\n".join(f"  - {a}" for a in accounts) or "  (none yet)"
+        examples_str = (
+            "\n".join(f"  {e['description']} → {e['account']}" for e in examples[:12])
+            or "  (none yet)"
+        )
+        lines = "\n".join(
+            f'  {i}: "{it.get("description", "")}" — {currency} {float(it.get("amount", 0)):.2f}'
+            f'{" (income)" if it.get("type") == "income" else ""}'
+            for i, it in enumerate(items)
+        )
+        return f"""You are a personal finance assistant categorising credit card transactions into hledger accounts.
+
+Available accounts:
+{accounts_str}
+
+Recent examples from the user's journal:
+{examples_str}
+
+Transactions to categorise (index: description — amount):
+{lines}
+
+Respond with JSON only, no markdown fences: an object keyed by the index as a
+string, each value {{"account": "expenses:...", "confidence": 0.95}}.
+Include every index. Example: {{"0": {{"account": "expenses:food", "confidence": 0.9}}}}
+
+Rules:
+- Pick the single most appropriate account from the list above. If none fits, suggest a new one using the same naming style.
+- Income transactions must get an income:... account; everything else expenses:...
+- confidence: 0.9+ = very certain, 0.7-0.89 = fairly certain, <0.7 = uncertain."""
+
+    def _parse_batch(self, raw: str, count: int) -> dict[int, tuple[str, float]]:
+        text = raw.strip()
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+        data = json.loads(text)
+        if not isinstance(data, dict):
+            return {}
+        out: dict[int, tuple[str, float]] = {}
+        for key, value in data.items():
+            try:
+                idx = int(key)
+            except (TypeError, ValueError):
+                continue
+            if not (0 <= idx < count) or not isinstance(value, dict):
+                continue
+            account = str(value.get("account", "")).strip()
+            if not account:
+                continue
+            try:
+                confidence = float(value.get("confidence", 0.0))
+            except (TypeError, ValueError):
+                confidence = 0.0
+            out[idx] = (account, confidence)
+        return out
+
     def _parse_response(self, raw: str) -> Optional[tuple[str, float]]:
         text = raw.strip()
         text = re.sub(r"^```(?:json)?\s*", "", text)

@@ -17,6 +17,7 @@ from bot.balances import account_balances, account_total
 from bot.categoriser import Categoriser
 from bot.config import journal_dir, load_config, merchant_map_path, state_path
 from bot.git_ops import GitOps
+from bot.local_categoriser import LocalCategoriser
 from bot.merchant_map import MerchantMap
 from bot.parser import get_parser
 from bot.parser.ai_parser import AIParser
@@ -38,6 +39,35 @@ currency = config.get("currency", "SGD")
 _lock = threading.Lock()
 _wizards: dict[str, dict] = {}
 WIZARD_TTL = 60 * 60  # 1 hour
+
+
+def _budget_labels() -> dict[str, str]:
+    """{label: account} from budgets.json — the user's own names for accounts.
+
+    Best-effort: a missing or malformed file just means no extra synonyms.
+    """
+    try:
+        from data import load_settings, settings_path
+        settings = load_settings(settings_path(journal_path))
+        return {
+            str(cfg.get("label")): account
+            for account, cfg in (settings.get("budgets") or {}).items()
+            if isinstance(cfg, dict) and cfg.get("label")
+        }
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Could not read budget labels: %s", exc)
+        return {}
+
+
+def _local_categoriser(accounts: list[str]) -> LocalCategoriser:
+    """Offline categoriser built from the journal as it stands right now."""
+    try:
+        text = journal_path.read_text() if journal_path.exists() else ""
+    except OSError as exc:
+        logger.warning("Could not read journal for local categorisation: %s", exc)
+        text = ""
+    return LocalCategoriser(text, accounts, _budget_labels())
+
 
 # ------------------------------------------------------------------
 # Import wizard
@@ -172,6 +202,7 @@ def _review_view(wizard: dict) -> dict:
             "type": tx.get("type", "expense"),
             "ai_suggestion": tx.get("ai_suggestion"),
             "ai_confidence": tx.get("ai_confidence", 0.0),
+            "suggestion_source": tx.get("suggestion_source"),
         },
     }
 
@@ -201,31 +232,69 @@ def start_categorisation(
         new_txns = wizard.pop("raw_transactions")
         accounts = writer.get_accounts()
         examples = writer.get_recent_examples()
+        local = _local_categoriser(accounts)
 
+        # Work out every suggestion we can without the network first, then ask
+        # the AI once for whatever is left. Previously every row went straight
+        # to the AI, one request each, so a long statement ran past the free
+        # tier's rate limit and the rest of the import arrived with no
+        # suggestions at all.
+        staged: list[dict] = []
+        needs_ai: list[int] = []
         for tx in new_txns:
             known_account = merchant_map.lookup(tx["description"])
             if known_account and abs(tx.get("amount", 0)) < 6:
                 wizard["auto_categorized"].append(
                     {**tx, "account": known_account, "status": "auto"}
                 )
-            else:
-                if known_account:
-                    suggestion = (known_account, 0.99)
-                else:
-                    is_income = tx.get("type") == "income"
-                    if is_income:
-                        suggestion = ("income:unknown", 0.5)
-                    else:
-                        suggestion = categoriser.suggest_category(
-                            tx["description"], tx["amount"], currency, accounts, examples
-                        )
-                wizard["pending"].append({
-                    **tx,
-                    "ai_suggestion": suggestion[0] if suggestion else None,
-                    "ai_confidence": suggestion[1] if suggestion else 0.0,
-                })
+                continue
 
+            suggestion = None
+            source = None
+            if known_account:
+                suggestion = (known_account, 0.99)
+                source = "your merchant rule"
+            else:
+                guess = local.suggest(tx["description"], tx.get("type") == "income")
+                if guess:
+                    suggestion = (guess[0], guess[1])
+                    source = guess[2]
+
+            entry = {
+                **tx,
+                "ai_suggestion": suggestion[0] if suggestion else None,
+                "ai_confidence": suggestion[1] if suggestion else 0.0,
+                "suggestion_source": source,
+            }
+            # Ask the AI only where local evidence is absent or weak, so a
+            # confident local match never waits on a network call.
+            if not suggestion or suggestion[1] < 0.9:
+                needs_ai.append(len(staged))
+            staged.append(entry)
+
+        if needs_ai and categoriser.available:
+            batch = [staged[i] for i in needs_ai]
+            answers = categoriser.suggest_many(batch, currency, accounts, examples)
+            for slot, idx in enumerate(needs_ai):
+                answer = answers.get(slot)
+                if not answer:
+                    continue
+                account, confidence = answer
+                # Keep the local guess unless the AI is more certain: local
+                # evidence comes from this user's own ledger.
+                if confidence >= staged[idx]["ai_confidence"]:
+                    staged[idx]["ai_suggestion"] = account
+                    staged[idx]["ai_confidence"] = confidence
+                    staged[idx]["suggestion_source"] = "AI"
+        elif needs_ai and not categoriser.available:
+            logger.warning(
+                "AI categorisation unavailable; %d of %d rows rely on local matching only",
+                len(needs_ai), len(staged),
+            )
+
+        wizard["pending"].extend(staged)
         return _review_view(wizard)
+
 
 
 def tx_action(wizard_id: str, action: str, payload: dict) -> dict:
@@ -239,8 +308,14 @@ def tx_action(wizard_id: str, action: str, payload: dict) -> dict:
         tx = pending[idx]
 
         if action == "confirm":
-            account = tx.get("ai_suggestion") or "expenses:unknown"
-            merchant_map.save(tx["description"], account)
+            suggested = tx.get("ai_suggestion")
+            account = suggested or "expenses:unknown"
+            # Only remember a real choice. Confirming a row that had no
+            # suggestion used to write a permanent rule sending that merchant
+            # to expenses:unknown, so the mistake repeated on every later
+            # import and got harder to notice each time.
+            if suggested:
+                merchant_map.save(tx["description"], account)
             wizard["confirmed"].append({**tx, "account": account, "status": "confirmed"})
             wizard["current_idx"] += 1
 
