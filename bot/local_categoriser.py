@@ -128,11 +128,6 @@ class LocalCategoriser:
                  labels: Optional[dict[str, str]] = None):
         self.history: dict[str, Counter] = defaultdict(Counter)
         self.token_index: dict[str, Counter] = defaultdict(Counter)
-        # The payee as actually written in the journal, per normalised key, so
-        # the reason can quote what the user really filed rather than echoing
-        # the incoming line. "GRAB *TRIP 9915" and "GRAB *TRIP 4821" share a
-        # key; saying you filed 9915 before would be untrue.
-        self.payees: dict[str, str] = {}
         self.accounts: list[str] = list(accounts or [])
         # label -> account, e.g. {"Transport": "expenses:transportation"} from
         # budgets.json. The user wrote these names themselves, so they are the
@@ -173,14 +168,13 @@ class LocalCategoriser:
             if not key:
                 continue
             self.history[key][account] += 1
-            self.payees.setdefault(key, payee)
             for tok in tokens(payee):
                 self.token_index[tok][account] += 1
 
     # -- lookup ------------------------------------------------------
 
-    def suggest(self, description: str, is_income: bool = False) -> Optional[tuple[str, float, str]]:
-        """Return (account, confidence, reason) or None when nothing fits."""
+    def suggest(self, description: str, is_income: bool = False) -> Optional[tuple[str, float]]:
+        """Return (account, confidence) or None when nothing fits."""
         want = "income" if is_income else "expenses"
 
         def allowed(acct: str) -> bool:
@@ -193,13 +187,7 @@ class LocalCategoriser:
         # 1. Seen this exact description before.
         hits = Counter({a: n for a, n in self.history.get(key, {}).items() if allowed(a)})
         if hits:
-            account, count = hits.most_common(1)[0]
-            times = "once" if count == 1 else f"{count} times"
-            filed = self.payees.get(key, description)
-            if normalise(filed) == key and filed.strip() != str(description).strip():
-                # Same merchant, different reference number on the line.
-                return account, 0.97, f"you filed “{filed}” here {times} before"
-            return account, 0.97, f"you filed “{description}” here {times} before"
+            return hits.most_common(1)[0][0], 0.97
 
         # 2. Shares distinctive words with descriptions seen before. Scored by
         #    the share of this description's words that point at one account,
@@ -216,20 +204,17 @@ class LocalCategoriser:
                 matched = [t for t in desc_tokens if account in self.token_index.get(t, {})]
                 share = len(matched) / len(desc_tokens)
                 if share >= 0.5:
-                    conf = min(0.93, 0.80 + 0.13 * share)
-                    word = ", ".join(w.title() for w in matched[:3])
-                    return account, round(conf, 2), f"past transactions mentioning {word} go here"
+                    return account, round(min(0.93, 0.80 + 0.13 * share), 2)
 
         # 3. The description names one of their own accounts or budget labels.
         #    "Transport" -> expenses:transportation.
-        match = self._match_account_name(desc_tokens, allowed)
-        if match:
-            account, via = match
-            return account, 0.75, f"“{via}” matches your {account}"
+        account = self._match_account_name(desc_tokens, allowed)
+        if account:
+            return account, 0.75
 
         return None
 
-    def _match_account_name(self, desc_tokens, allowed) -> Optional[tuple[str, str]]:
+    def _match_account_name(self, desc_tokens, allowed) -> Optional[str]:
         if not desc_tokens:
             return None
 
@@ -241,9 +226,9 @@ class LocalCategoriser:
             if label_tokens and all(
                 any(_stem_match(d, l) for d in desc_tokens) for l in label_tokens
             ):
-                return account, label
+                return account
 
-        best: Optional[tuple[tuple, str, str]] = None
+        best: Optional[tuple[tuple, str]] = None
         for account in self.accounts:
             if not allowed(account):
                 continue
@@ -259,7 +244,7 @@ class LocalCategoriser:
             # and a deeper account beats the category above it.
             score = (len(matched), len(parent_hits), sum(len(t) for t in matched))
             if best is None or score > best[0]:
-                best = (score, account, " ".join(w.title() for w in matched))
+                best = (score, account)
         if best:
-            return best[1], best[2]
+            return best[1]
         return None

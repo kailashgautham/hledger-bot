@@ -202,7 +202,6 @@ def _review_view(wizard: dict) -> dict:
             "type": tx.get("type", "expense"),
             "ai_suggestion": tx.get("ai_suggestion"),
             "ai_confidence": tx.get("ai_confidence", 0.0),
-            "suggestion_source": tx.get("suggestion_source"),
         },
     }
 
@@ -250,21 +249,17 @@ def start_categorisation(
                 continue
 
             suggestion = None
-            source = None
             if known_account:
                 suggestion = (known_account, 0.99)
-                source = "your merchant rule"
             else:
                 guess = local.suggest(tx["description"], tx.get("type") == "income")
                 if guess:
-                    suggestion = (guess[0], guess[1])
-                    source = guess[2]
+                    suggestion = guess
 
             entry = {
                 **tx,
                 "ai_suggestion": suggestion[0] if suggestion else None,
                 "ai_confidence": suggestion[1] if suggestion else 0.0,
-                "suggestion_source": source,
             }
             # Ask the AI only where local evidence is absent or weak, so a
             # confident local match never waits on a network call.
@@ -285,7 +280,6 @@ def start_categorisation(
                 if confidence >= staged[idx]["ai_confidence"]:
                     staged[idx]["ai_suggestion"] = account
                     staged[idx]["ai_confidence"] = confidence
-                    staged[idx]["suggestion_source"] = "AI"
         elif needs_ai and not categoriser.available:
             logger.warning(
                 "AI categorisation unavailable; %d of %d rows rely on local matching only",

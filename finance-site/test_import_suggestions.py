@@ -127,18 +127,18 @@ def pipeline(descriptions, rules=None, ai=None, ai_conf=0.95):
     for d in descriptions:
         known = rules.get(d.upper())
         if known:
-            entry = {"account": known, "conf": 0.99, "src": "your merchant rule"}
+            entry = {"account": known, "conf": 0.99}
         else:
             guess = local.suggest(d)
-            entry = ({"account": guess[0], "conf": guess[1], "src": guess[2]}
-                     if guess else {"account": None, "conf": 0.0, "src": None})
+            entry = ({"account": guess[0], "conf": guess[1]}
+                     if guess else {"account": None, "conf": 0.0})
         if entry["conf"] < 0.9:
             needs_ai.append(len(staged))
         staged.append(entry)
     for slot, idx in enumerate(needs_ai):
         answer = (ai or {}).get(slot)
         if answer and ai_conf >= staged[idx]["conf"]:
-            staged[idx] = {"account": answer, "conf": ai_conf, "src": "AI"}
+            staged[idx] = {"account": answer, "conf": ai_conf}
     return staged
 
 
@@ -151,7 +151,6 @@ def test_transport_needs_no_ai_at_all():
 def test_a_known_merchant_rule_wins_and_skips_the_ai():
     got = pipeline(["Transport"], rules={"TRANSPORT": "expenses:food"}, ai={0: "expenses:groceries"})
     assert got[0]["account"] == "expenses:food", got
-    assert got[0]["src"] == "your merchant rule", got
 
 
 def test_confident_local_matches_are_not_sent_to_the_ai():
@@ -165,7 +164,6 @@ def test_confident_local_matches_are_not_sent_to_the_ai():
 def test_ai_fills_in_only_what_local_could_not():
     got = pipeline(["ZZQX HOLDINGS"], ai={0: "expenses:food"})
     assert got[0]["account"] == "expenses:food", got
-    assert got[0]["src"] == "AI", got
 
 
 def test_everything_still_resolves_when_the_ai_answers_nothing():
@@ -174,7 +172,6 @@ def test_everything_still_resolves_when_the_ai_answers_nothing():
     assert [g["account"] for g in got] == [
         "expenses:transportation", "expenses:groceries", "expenses:groceries",
     ], got
-    assert all(g["src"] for g in got), got
 
 
 if __name__ == "__main__":

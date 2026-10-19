@@ -105,12 +105,11 @@ def test_exact_repeat_uses_what_you_filed_before():
     assert got[1] >= 0.95, got
 
 
-def test_repeat_count_is_reported_truthfully():
-    got = cat().suggest("NTUC FAIRPRICE FINEST")
-    assert "once" in got[2], got[2]
-    got2 = cat().suggest("GRAB *TRIP 4821 SINGAPORE SG")
-    # Both GRAB trips normalise to the same key, so it is 2 times, not once.
-    assert "2 times" in got2[2], got2[2]
+def test_repeated_merchant_outranks_a_one_off():
+    """Two sightings of the same merchant must not weaken the match."""
+    got = cat().suggest("GRAB *TRIP 4821 SINGAPORE SG")
+    assert got and got[0] == "expenses:transportation", got
+    assert got[1] >= 0.95, got
 
 
 def test_reference_numbers_do_not_defeat_a_repeat():
