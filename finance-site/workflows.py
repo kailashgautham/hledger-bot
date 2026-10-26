@@ -701,3 +701,101 @@ def merchant_delete(data: dict) -> dict:
 def ai_status() -> dict:
     """Is the AI actually working? Makes a real request and reports the result."""
     return categoriser.status(probe=True)
+
+
+# ── Budgets ───────────────────────────────────────────
+# Fixed monthly limits, set here and stored in budgets.json beside the journal
+# so they are versioned with the ledger. Nothing else writes them.
+
+def budgets_list() -> dict:
+    """Current limits, plus the expense accounts that could have one."""
+    from data import load_settings, settings_path
+    settings = load_settings(settings_path(journal_path))
+    accounts = [a for a in writer.get_accounts() if a.startswith("expenses:")]
+    items = [
+        {"account": account, "limit": cfg["limit"], "label": cfg.get("label") or ""}
+        for account, cfg in sorted(settings.get("budgets", {}).items())
+    ]
+    # Accounts with no limit yet, so the editor can offer them.
+    have = {i["account"] for i in items}
+    return {
+        "budgets": items,
+        "other_budget": settings.get("other_budget"),
+        "accounts": accounts,
+        "unset": [a for a in accounts if a not in have],
+    }
+
+
+def budgets_save(data: dict) -> dict:
+    """Replace the stored limits with the ones given.
+
+    Writes the whole budgets map rather than patching one entry, so the editor
+    is the single source of truth and a removed row really is removed.
+    """
+    from data import SETTINGS_FILENAME, load_settings, settings_path
+    import json as _json
+
+    incoming = data.get("budgets")
+    if not isinstance(incoming, list):
+        return {"success": False, "message": "Expected a list of budgets."}
+
+    budgets: dict[str, dict] = {}
+    for row in incoming:
+        if not isinstance(row, dict):
+            continue
+        account = str(row.get("account") or "").strip()
+        if not account.startswith("expenses:"):
+            return {"success": False, "message": f"{account or 'An account'} is not an expense account."}
+        try:
+            limit = float(row.get("limit"))
+        except (TypeError, ValueError):
+            return {"success": False, "message": f"The limit for {account} is not a number."}
+        if limit <= 0:
+            return {"success": False, "message": f"The limit for {account} must be above zero."}
+        label = str(row.get("label") or "").strip()
+        budgets[account] = {"limit": round(limit, 2),
+                            "label": label or account.replace("expenses:", "").title()}
+
+    other = data.get("other_budget")
+    other_value = None
+    if other not in (None, ""):
+        try:
+            other_value = round(float(other), 2)
+        except (TypeError, ValueError):
+            return {"success": False, "message": "The limit for Other is not a number."}
+        if other_value <= 0:
+            return {"success": False, "message": "The limit for Other must be above zero."}
+
+    path = settings_path(journal_path)
+    # Keep any keys this editor does not manage, such as exclude_from_spend.
+    existing = {}
+    if path.exists():
+        try:
+            existing = _json.loads(path.read_text())
+        except Exception:
+            logger.warning("%s was not valid JSON; rewriting it", path)
+            existing = {}
+    if not isinstance(existing, dict):
+        existing = {}
+    existing["budgets"] = {a: dict(c) for a, c in budgets.items()}
+    if other_value is None:
+        existing.pop("other_budget", None)
+    else:
+        existing["other_budget"] = other_value
+
+    with _lock:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(_json.dumps(existing, indent=2, sort_keys=True) + "\n")
+        success, err = git_ops.commit_and_push(
+            f"Set monthly budgets ({len(budgets)} categories)", [SETTINGS_FILENAME])
+    # Confirm what was actually stored, so the editor cannot drift from the file.
+    saved = load_settings(path)
+    return {
+        "success": success,
+        "message": err or None,
+        "budgets": [
+            {"account": a, "limit": c["limit"], "label": c.get("label") or ""}
+            for a, c in sorted(saved.get("budgets", {}).items())
+        ],
+        "other_budget": saved.get("other_budget"),
+    }

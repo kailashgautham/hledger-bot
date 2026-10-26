@@ -346,6 +346,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/ai-status":
             self._json(workflows.ai_status())
             return
+        if self.path == "/api/budgets":
+            self._json(workflows.budgets_list())
+            return
         if self.path in ("/", "/index.html"):
             body = (Path(__file__).parent / "index.html").read_bytes()
             self._send(200, body, "text/html; charset=utf-8")
@@ -392,6 +395,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/undo":
             self._json_post(lambda d: workflows.undo_last_change())
+            return
+        if self.path == "/api/budgets/save":
+            self._json_post(workflows.budgets_save)
             return
         if self.path == "/api/merchants/set":
             self._json_post(workflows.merchant_set)

@@ -251,6 +251,27 @@
     margin: 22px 8px 12px;
   }
   .section-label .sub { font-size: 13px; font-weight: 500; color: var(--tertiary); margin-left: auto; }
+  /* A text action in a section heading. .mini-btn is a 30px icon square and
+     clips any label, so headings that need a word use this instead. */
+  .link-btn {
+    flex: none; margin-left: 10px; padding: 5px 11px; border-radius: 999px;
+    border: 1px solid var(--glass-border); background: var(--input-fill);
+    color: var(--secondary); font: 600 12px var(--font); cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: color .18s var(--ease), background .18s var(--ease);
+  }
+  .link-btn:hover { color: var(--text); background: var(--glass-fill-2); }
+  .link-btn:focus-visible { color: var(--tint); border-color: var(--tint); outline: none; }
+  .section-label .sub + .link-btn { margin-left: 10px; }
+  .section-label:has(.link-btn) .sub { margin-left: auto; }
+
+  /* Budget editor */
+  .bl { display: flex; flex-direction: column; gap: 8px; margin-top: 2px; }
+  .bl-row { display: grid; grid-template-columns: minmax(0,1fr) 108px 30px; gap: 8px; align-items: center; }
+  .bl-row .bl-name { min-width: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+  .bl-row .bl-acct { display: block; font-size: 11px; font-weight: 500; color: var(--tertiary); overflow-wrap: anywhere; }
+  .bl-row .input { padding: 9px 11px; font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+  @media (max-width: 480px) { .bl-row { grid-template-columns: minmax(0,1fr) 92px 30px; gap: 6px; } }
 
   /* ── Chart cards ───────────────────────────────── */
   .grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; margin-bottom: 16px; }
@@ -814,7 +835,7 @@
       <button class="stat glass press stagger" data-jump="month-expenses"><span class="label">Spent this month</span><span class="value" id="month-net"><span class="skel">0000</span></span><span class="hint" id="month-hint"></span></button>
     </div>
 
-    <div class="section-label"><span>Budgets</span><span class="sub" id="budget-month"></span></div>
+    <div class="section-label"><span>Budgets</span><span class="sub" id="budget-month"></span><button class="link-btn" id="btn-budgets">Set limits</button></div>
     <div class="card glass" style="margin-bottom:16px">
       <div class="budget-grid" id="budget-grid"></div>
     </div>
@@ -1684,6 +1705,131 @@ function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
+/* ── Budget limits ────────────────────────────────────
+   Fixed monthly limits the user sets. They are stored in budgets.json beside
+   the journal and committed with it, so they are versioned with the ledger and
+   survive a redeploy. Nothing derives them: a limit taken from your own median
+   month is not a limit, it redraws what you already spent and always reads
+   "on track". */
+let budgetState = { rows: [], accounts: [], other: null };
+
+async function openBudgetsSheet() {
+  $('sheet-title').textContent = 'Monthly limits';
+  $('sheet-sub').textContent = 'How much you want to spend per category each month';
+  $('sheet-list').innerHTML = '<div class="wiz"><div class="progress"><i style="width:100%"></i></div>'
+    + '<p class="hint">Loading limits…</p></div>';
+  openSheetEl();
+  let d;
+  try {
+    d = await api('/api/budgets');
+  } catch (e) {
+    $('sheet-list').innerHTML = `<div class="wiz"><div class="toast err">${esc(e.message)}</div>
+      <button class="btn ghost full" data-close="1">Close</button></div>`;
+    return;
+  }
+  budgetState = {
+    rows: (d.budgets || []).map(b => ({ ...b })),
+    accounts: d.accounts || [],
+    other: d.other_budget == null ? '' : d.other_budget,
+  };
+  renderBudgetEditor();
+}
+
+function renderBudgetEditor(error) {
+  const { rows, accounts, other } = budgetState;
+  const taken = new Set(rows.map(r => r.account));
+  const spare = accounts.filter(a => !taken.has(a));
+  $('sheet-sub').textContent = `${rows.length} ${rows.length === 1 ? 'limit' : 'limits'} set`;
+  $('sheet-list').innerHTML = `
+    <div class="wiz">
+      ${error ? `<div class="toast err">${esc(error)}</div>` : ''}
+      <div class="bl">
+        ${rows.length ? rows.map((r, i) => `
+          <div class="bl-row">
+            <span class="bl-name">${esc(r.label || prettyCategory(r.account))}
+              <span class="bl-acct">${esc(r.account)}</span></span>
+            <input class="input" type="number" min="0" step="1" inputmode="decimal"
+                   value="${r.limit}" data-i="${i}" aria-label="Monthly limit for ${esc(r.account)}">
+            <button class="mini-btn" data-del="${i}" title="Remove limit"
+                    aria-label="Remove the limit for ${esc(r.account)}">${ICON_DELETE}</button>
+          </div>`).join('')
+          : '<p class="hint">No limits set yet. Every category shows under “Other” until you set one.</p>'}
+        <div class="bl-row">
+          <span class="bl-name">Other<span class="bl-acct">everything with no limit set</span></span>
+          <input class="input" type="number" min="0" step="1" inputmode="decimal"
+                 value="${other}" id="bl-other" placeholder="none" aria-label="Monthly limit for Other">
+          <span class="mini-btn-gap"></span>
+        </div>
+      </div>
+      ${spare.length ? `
+      <div class="field-row"><label for="bl-add">Add a category</label>
+        <select class="input" id="bl-add">
+          <option value="">Choose a category…</option>
+          ${spare.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('')}
+        </select></div>` : ''}
+      <button class="btn primary full" id="bl-save">Save limits</button>
+      <button class="btn ghost full" data-close="1">Cancel</button>
+    </div>`;
+
+  // Read every field back before acting, so an edit is never lost to a
+  // re-render triggered by adding or removing a different row.
+  const collect = () => {
+    $('sheet-list').querySelectorAll('.bl-row input[data-i]').forEach(el => {
+      budgetState.rows[+el.dataset.i].limit = el.value;
+    });
+    budgetState.other = $('bl-other').value.trim();
+  };
+
+  $('sheet-list').querySelectorAll('[data-del]').forEach(el => el.addEventListener('click', () => {
+    collect();
+    budgetState.rows.splice(+el.dataset.del, 1);
+    renderBudgetEditor();
+  }));
+
+  if (spare.length) {
+    $('bl-add').addEventListener('change', e => {
+      const account = e.target.value;
+      if (!account) return;
+      collect();
+      budgetState.rows.push({ account, limit: '', label: '' });
+      budgetState.rows.sort((a, b) => a.account.localeCompare(b.account));
+      renderBudgetEditor();
+      const added = [...$('sheet-list').querySelectorAll('.bl-row input[data-i]')]
+        .find(el => budgetState.rows[+el.dataset.i].account === account);
+      if (added) { added.focus(); added.select(); }
+    });
+  }
+
+  $('bl-save').addEventListener('click', async () => {
+    collect();
+    const bad = budgetState.rows.find(r => !(Number(r.limit) > 0));
+    if (bad) {
+      renderBudgetEditor(`${prettyCategory(bad.account)} needs a limit above zero, or remove it.`);
+      return;
+    }
+    const btn = $('bl-save');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      const r = await api('/api/budgets/save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          budgets: budgetState.rows.map(x => ({ account: x.account, limit: Number(x.limit), label: x.label })),
+          other_budget: budgetState.other === '' ? null : Number(budgetState.other),
+        }),
+      });
+      if (!r.success) throw new Error(r.message || 'Could not save');
+      closeSheet();
+      toast('Limits saved');
+      load().catch(() => {});
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Save limits';
+      renderBudgetEditor(e.message);
+    }
+  });
+}
+
 /* ── Merchant rules ───────────────────────────────────
    merchant_map.json decides how imports auto-categorise, and nothing in the
    site could read it — a wrong rule silently repeated on every future
@@ -1929,6 +2075,8 @@ function wireSegmented(id, attr, apply) {
 }
 wireSegmented('catPeriod', 'period', v => { state.catPeriod = v; if (state.data) safe(renderCats); });
 wireSegmented('flowMode', 'mode', v => { state.flowMode = v; if (state.data) safe(renderFlow); });
+
+$('btn-budgets').addEventListener('click', openBudgetsSheet);
 
 $('budget-grid').addEventListener('click', e => {
   const row = e.target.closest('.budget-row');
