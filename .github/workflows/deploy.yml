@@ -1,15 +1,26 @@
 name: Deploy
 
+# After CI passes on main, put that exact commit on the host: join the
+# tailnet, SSH in, and run deploy.sh. A commit whose tests fail is never
+# deployed.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+# One deploy at a time; a newer one waits rather than cancelling a rebuild.
+concurrency:
+  group: deploy-host
+  cancel-in-progress: false
+
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Connect to Tailscale
@@ -22,10 +33,12 @@ jobs:
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           HOST_IP: ${{ secrets.HOST_IP }}
+          # The commit CI tested; on a manual run, the commit it was started from.
+          COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           mkdir -p ~/.ssh
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new \
             -o IdentitiesOnly=yes kailashgautham@$HOST_IP \
-            'bash ~/hledger-bot/deploy.sh'
+            "bash ~/hledger-bot/deploy.sh $COMMIT"

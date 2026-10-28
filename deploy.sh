@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
-# Deploy script: pull the latest pushed code and rebuild/restart the container.
-# Run on the host (via SSH from GitHub Actions) from the bot repo checkout.
+# Deploy script: bring the checkout to the commit CI tested (or the latest
+# main when none is given) and rebuild/restart the containers. Run on the
+# host via SSH from GitHub Actions: bash ~/hledger-bot/deploy.sh <commit>
+#
+# Everything is inside main(), so bash has read the whole script before the
+# git reset below rewrites this file.
 set -euo pipefail
 
-cd "$HOME/hledger-bot"
-git fetch origin
-git reset --hard origin/main
-docker compose up -d --build
+main() {
+  cd "$HOME/hledger-bot"
+  git fetch origin main
+  git reset --hard "${1:-origin/main}"
+  docker compose up -d --build
+}
+
+main "$@"
