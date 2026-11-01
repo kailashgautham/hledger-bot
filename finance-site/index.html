@@ -714,6 +714,25 @@
     font: 500 15px var(--font); outline: none;
     -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
   }
+  /* Date fields. WebKit and Blink centre the value inside their own shadow
+     parts, so a date sits centred in a column of left-aligned fields and
+     reads like a mistake. The parts have to be targeted directly: text-align
+     on the input itself does not reach them. */
+  .input[type="date"] { text-align: left; }
+  .input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+  .input[type="date"]::-webkit-datetime-edit { text-align: left; padding: 0; }
+  /* The picker glyph is a UA bitmap painted for a light ground, so it goes
+     near-invisible on this one. color-scheme makes the UA repaint it, and the
+     browsers that ignore that get the filter instead. */
+  .input[type="date"] { color-scheme: light; }
+  .input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: .55; cursor: pointer; margin-left: 6px;
+  }
+  .input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+  @media (prefers-color-scheme: dark) {
+    .input[type="date"] { color-scheme: dark; }
+    .input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1) brightness(1.4); }
+  }
   .input:focus { border-color: var(--tint); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tint) 25%, transparent); }
   select.input {
     -webkit-backdrop-filter: none; backdrop-filter: none;

@@ -461,3 +461,24 @@ def build_data(text: str, currency: str = "SGD", settings: dict | None = None,
         "transactions": tx_view,
         "insights": insights,
     }
+
+
+def monthly_category_totals(text: str, is_excluded=None) -> dict[str, dict[str, float]]:
+    """{"2026-09": {"expenses:food": 210.0, ...}, ...} for expense accounts.
+
+    Shared by the dashboard and by budget suggestions so both count spending
+    the same way — excluded accounts out, exact posting account as the key, no
+    rolling up of sub-accounts into their parent.
+    """
+    if is_excluded is None:
+        is_excluded = is_excluded_from_spend
+    out: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    for tx in parse_transactions(text):
+        month = tx["date"][:7]
+        for p in tx["postings"]:
+            account = p["account"]
+            if not account.startswith("expenses:") or is_excluded(account):
+                continue
+            if p["amount"]:
+                out[month][account] += p["amount"]
+    return {m: dict(c) for m, c in out.items()}
