@@ -396,6 +396,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/api/undo":
             self._json_post(lambda d: workflows.undo_last_change())
             return
+        if self.path == "/api/budgets/suggest":
+            self._json_post(workflows.budgets_suggest)
+            return
         if self.path == "/api/budgets/save":
             self._json_post(workflows.budgets_save)
             return

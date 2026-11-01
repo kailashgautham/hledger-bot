@@ -4,6 +4,7 @@ Reuses the bot's parser, categoriser, merchant map, state, writer and git
 modules so the website produces identical journal output to the bot.
 """
 import logging
+import math
 import os
 import re
 import secrets
@@ -798,4 +799,92 @@ def budgets_save(data: dict) -> dict:
             for a, c in sorted(saved.get("budgets", {}).items())
         ],
         "other_budget": saved.get("other_budget"),
+    }
+
+
+def budgets_suggest(data: dict) -> dict:
+    """Propose limits from this ledger, for the user to review and edit.
+
+    Nothing is written here. The editor fills itself with these numbers and the
+    user saves them, so the limits that end up stored are ones they agreed to,
+    not ones that appeared on their own.
+
+    Categories whose typical month is below the threshold are not broken out at
+    all — they fold into Other, which is what "Other" is for. A long tail of
+    $4 rows is noise, not a budget.
+
+    Typical month = median of completed months, so one unusual month neither
+    raises nor sinks the bar, and months where a category saw no spending count
+    as zero rather than being skipped, or a thing bought once a year would look
+    like a monthly habit.
+    """
+    from statistics import median
+
+    from data import load_settings, monthly_category_totals, settings_path
+
+    try:
+        threshold = float(data.get("threshold", 30))
+    except (TypeError, ValueError):
+        return {"success": False, "message": "The threshold is not a number."}
+    if threshold < 0:
+        return {"success": False, "message": "The threshold cannot be negative."}
+
+    try:
+        text = journal_path.read_text() if journal_path.exists() else ""
+    except OSError as exc:
+        return {"success": False, "message": f"Could not read the journal: {exc}"}
+
+    settings = load_settings(settings_path(journal_path))
+    excluded = settings.get("exclude_from_spend") or []
+
+    def is_excluded(account: str) -> bool:
+        return any(account == a or account.startswith(a + ":") for a in excluded)
+
+    totals = monthly_category_totals(text, is_excluded)
+    this_month = date.today().strftime("%Y-%m")
+    done = [m for m in sorted(totals) if m < this_month]
+    if not done:
+        return {"success": False,
+                "message": "There is no completed month in the journal yet to measure."}
+
+    typical: dict[str, float] = {}
+    for account in {a for m in done for a in totals[m]}:
+        series = [totals[m].get(account, 0.0) for m in done]
+        value = median(series)
+        if value > 0:
+            typical[account] = round(value, 2)
+
+    big = {a: v for a, v in typical.items() if v >= threshold}
+    small = {a: v for a, v in typical.items() if v < threshold}
+
+    def round_up(value: float) -> float:
+        """To the next 10, so a limit is a round number with a little headroom.
+
+        A limit equal to the typical month would sit at 100% from the start.
+        """
+        step = 10.0
+        return float(math.ceil(value / step) * step)
+
+    items = [
+        {"account": a,
+         "limit": round_up(v),
+         "typical": v,
+         "label": a.replace("expenses:", "").replace(":", " · ").title()}
+        for a, v in sorted(big.items(), key=lambda kv: -kv[1])
+    ]
+    # Everything below the threshold shares one limit, measured the same way:
+    # the median of what those categories cost together each month, not the sum
+    # of their individual medians, which would overstate a tail that never
+    # peaks at once.
+    tail = [sum(v for a, v in totals[m].items() if a in small) for m in done]
+    other_typical = round(median(tail), 2) if tail else 0.0
+
+    return {
+        "success": True,
+        "months": len(done),
+        "threshold": threshold,
+        "budgets": items,
+        "other_budget": round_up(other_typical) if other_typical > 0 else None,
+        "other_typical": other_typical,
+        "folded": sorted(small),
     }

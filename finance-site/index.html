@@ -272,6 +272,10 @@
   .bl-row .bl-acct { display: block; font-size: 11px; font-weight: 500; color: var(--tertiary); overflow-wrap: anywhere; }
   .bl-row .input { padding: 9px 11px; font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
   @media (max-width: 480px) { .bl-row { grid-template-columns: minmax(0,1fr) 92px 30px; gap: 6px; } }
+  .bl-suggest { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .bl-suggest .bl-sub { font-size: 13px; color: var(--secondary); }
+  .bl-suggest .input { width: 92px; flex: none; text-align: right; font-variant-numeric: tabular-nums; padding: 9px 11px; }
+  .bl-suggest .btn { flex: none; padding: 9px 16px; }
 
   /* ── Chart cards ───────────────────────────────── */
   .grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; margin-bottom: 16px; }
@@ -1730,7 +1734,7 @@ function esc(s) {
    survive a redeploy. Nothing derives them: a limit taken from your own median
    month is not a limit, it redraws what you already spent and always reads
    "on track". */
-let budgetState = { rows: [], accounts: [], other: null };
+let budgetState = { rows: [], accounts: [], other: null, threshold: 30 };
 
 async function openBudgetsSheet() {
   $('sheet-title').textContent = 'Monthly limits';
@@ -1750,11 +1754,12 @@ async function openBudgetsSheet() {
     rows: (d.budgets || []).map(b => ({ ...b })),
     accounts: d.accounts || [],
     other: d.other_budget == null ? '' : d.other_budget,
+    threshold: budgetState.threshold ?? 30,
   };
   renderBudgetEditor();
 }
 
-function renderBudgetEditor(error) {
+function renderBudgetEditor(error, note) {
   const { rows, accounts, other } = budgetState;
   const taken = new Set(rows.map(r => r.account));
   const spare = accounts.filter(a => !taken.has(a));
@@ -1762,11 +1767,14 @@ function renderBudgetEditor(error) {
   $('sheet-list').innerHTML = `
     <div class="wiz">
       ${error ? `<div class="toast err">${esc(error)}</div>` : ''}
+      ${note ? `<div class="toast">${esc(note)}</div>` : ''}
       <div class="bl">
         ${rows.length ? rows.map((r, i) => `
           <div class="bl-row">
             <span class="bl-name">${esc(r.label || prettyCategory(r.account))}
-              <span class="bl-acct">${esc(r.account)}</span></span>
+              <span class="bl-acct">${r.typical != null
+                ? `${esc(r.account)} · usually ${cur.format(r.typical)}`
+                : esc(r.account)}</span></span>
             <input class="input" type="number" min="0" step="1" inputmode="decimal"
                    value="${r.limit}" data-i="${i}" aria-label="Monthly limit for ${esc(r.account)}">
             <button class="mini-btn" data-del="${i}" title="Remove limit"
@@ -1786,6 +1794,16 @@ function renderBudgetEditor(error) {
           <option value="">Choose a category…</option>
           ${spare.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join('')}
         </select></div>` : ''}
+      <div class="field-row">
+        <label for="bl-threshold">Start from what you actually spend</label>
+        <div class="bl-suggest">
+          <span class="bl-sub">Break out categories above</span>
+          <input class="input" type="number" min="0" step="5" inputmode="decimal"
+                 id="bl-threshold" value="${budgetState.threshold}" aria-label="Only break out categories above this much a month">
+          <button class="btn ghost" id="bl-fill">Fill in</button>
+        </div>
+        <p class="hint" id="bl-suggest-note">Anything below that goes into Other. Nothing is saved until you press Save limits.</p>
+      </div>
       <button class="btn primary full" id="bl-save">Save limits</button>
       <button class="btn ghost full" data-close="1">Cancel</button>
     </div>`;
@@ -1818,6 +1836,37 @@ function renderBudgetEditor(error) {
       if (added) { added.focus(); added.select(); }
     });
   }
+
+  $('bl-fill').addEventListener('click', async () => {
+    collect();
+    budgetState.threshold = $('bl-threshold').value.trim();
+    const btn = $('bl-fill');
+    btn.disabled = true;
+    btn.textContent = 'Reading…';
+    let r;
+    try {
+      r = await api('/api/budgets/suggest', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ threshold: Number(budgetState.threshold) }),
+      });
+      if (!r.success) throw new Error(r.message || 'Could not read your spending');
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = 'Fill in';
+      renderBudgetEditor(e.message);
+      return;
+    }
+    budgetState.rows = (r.budgets || []).map(b => ({
+      account: b.account, limit: b.limit, label: b.label || '', typical: b.typical,
+    })).sort((a, b) => a.account.localeCompare(b.account));
+    budgetState.other = r.other_budget == null ? '' : r.other_budget;
+    const folded = (r.folded || []).length;
+    renderBudgetEditor(null,
+      `From ${r.months} completed month${r.months === 1 ? '' : 's'}: `
+      + `${budgetState.rows.length} categor${budgetState.rows.length === 1 ? 'y' : 'ies'} broken out`
+      + (folded ? `, ${folded} under ${cur.format(Number(budgetState.threshold))} folded into Other` : '')
+      + '. Edit anything, then save.');
+  });
 
   $('bl-save').addEventListener('click', async () => {
     collect();
